@@ -1,15 +1,15 @@
 // ==UserScript==
-// @name         OGame: Timer Visibili Item & Ufficiali (IT)
+// @name         OGame: Item & Officer Timers
 // @namespace    https://greasyfork.org/users/nicolagalassi
 // @version      1.7
-// @description  Mostra il tempo rimanente per item e ufficiali. Item via timestamp (language-agnostic). Ufficiali: IT, EN, DE, FR, TR.
+// @description  Displays remaining time on active items and officers. Supports IT, EN, DE, FR, TR.
 // @author       galax
 // @match        https://*.ogame.gameforge.com/game/index.php?page=*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=ogame.gameforge.com
 // @grant        none
 // @license      MIT
-// @downloadURL https://update.greasyfork.org/scripts/575226/OGame%3A%20Timer%20Visibili%20Item%20%20Ufficiali%20%28IT%29.user.js
-// @updateURL https://update.greasyfork.org/scripts/575226/OGame%3A%20Timer%20Visibili%20Item%20%20Ufficiali%20%28IT%29.meta.js
+// @downloadURL  https://update.greasyfork.org/scripts/575226/OGame%3A%20Item%20%26%20Officer%20Timers.user.js
+// @updateURL    https://update.greasyfork.org/scripts/575226/OGame%3A%20Item%20%26%20Officer%20Timers.meta.js
 // ==/UserScript==
 
 (function () {
