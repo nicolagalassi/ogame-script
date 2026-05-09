@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OGame: Item & Officer Timers
 // @namespace    https://greasyfork.org/users/nicolagalassi
-// @version      1.7
+// @version      1.7.1
 // @description  Displays remaining time on active items and officers. Supports IT, EN, DE, FR, TR.
 // @author       galax
 // @match        https://*.ogame.gameforge.com/game/index.php?page=*
@@ -63,9 +63,9 @@
         const unit = match[2].toLowerCase();
 
         if (/^(settiman|week|woch|semain|hafta)/.test(unit)) return (amount * 7) + 'd';
-        if (/^(giorn|day|tag|jour|gün)/.test(unit))          return amount + 'd';
-        if (/^(or[ae]?|hour|stund|heur|saat)/.test(unit))    return amount + 'h';
-        if (/^(minut|dakika)/.test(unit))                     return amount + 'm';
+        if (/^(giorn|day|tag|jour|gün)/.test(unit)) return amount + 'd';
+        if (/^(or[ae]?|hour|stund|heur|saat)/.test(unit)) return amount + 'h';
+        if (/^(minut|dakika)/.test(unit)) return amount + 'm';
         return amount + unit[0];
     }
 
@@ -76,11 +76,11 @@
 
         const totalSec = Math.floor(remaining / 1000);
         const totalDays = Math.floor(totalSec / 86400);
-        const hours     = Math.floor((totalSec % 86400) / 3600);
-        const minutes   = Math.floor((totalSec % 3600) / 60);
+        const hours = Math.floor((totalSec % 86400) / 3600);
+        const minutes = Math.floor((totalSec % 3600) / 60);
 
         if (totalDays > 0) return totalDays + "d";
-        if (hours > 0)     return hours + "h";
+        if (hours > 0) return hours + "h";
         return minutes + "m";
     }
 
