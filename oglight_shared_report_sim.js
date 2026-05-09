@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OGLight - Shared Report Integration
 // @namespace    https://greasyfork.org/users/nicolagalassi
-// @version      1.0
+// @version      1.1
 // @description  Cattura il prefill dal simulatore, lo applica ai report alleanza (lista e dettagli) e nasconde i cloni
 // @author       galax
 // @match        https://*.ogame.gameforge.com/game/index.php*
@@ -51,7 +51,16 @@
     `;
     document.head.appendChild(style);
 
+    function isSharedSpyReportsTab() {
+        // Sub-tab 11 = "Rapporti di spionaggio condivisi" (alleanza)
+        // Controlla sia la lista che il popup aperto da quel tab
+        const activeTab = document.querySelector('.innerTabItem.active');
+        return activeTab?.getAttribute('data-subtab-id') === '11';
+    }
+
     function processActionContainers() {
+        if (!isSharedSpyReportsTab()) return;
+
         const actionContainers = document.querySelectorAll('message-footer-actions:not(.ogtools_processed)');
 
         actionContainers.forEach(container => {
@@ -76,7 +85,8 @@
                 }
             }
 
-            if (!apiKey) {
+            // Valida: solo spy report (sr-), non combat report (cr-) o altro
+            if (!apiKey || !apiKey.startsWith('sr-')) {
                 container.classList.add('ogtools_processed');
                 return;
             }
