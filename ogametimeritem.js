@@ -15,8 +15,6 @@
 (function () {
     'use strict';
 
-    const lang = (document.querySelector('meta[name="ogame-language"]')?.content || 'en').toLowerCase();
-
     // 1. INIEZIONE STILI CSS
     const style = document.createElement('style');
     style.innerHTML = `
@@ -55,18 +53,20 @@
     };
 
     function parseOfficerTooltip(tooltip) {
-        const re = OFFICER_REGEX[lang] || OFFICER_REGEX.en;
-        const match = tooltip.match(re);
-        if (!match) return null;
+        for (const re of Object.values(OFFICER_REGEX)) {
+            const match = tooltip.match(re);
+            if (!match) continue;
 
-        let amount = parseInt(match[1], 10);
-        const unit = match[2].toLowerCase();
+            const amount = parseInt(match[1], 10);
+            const unit = match[2].toLowerCase();
 
-        if (/^(settiman|week|woch|semain|hafta)/.test(unit)) return (amount * 7) + 'd';
-        if (/^(giorn|day|tag|jour|gün)/.test(unit)) return amount + 'd';
-        if (/^(or[ae]?|hour|stund|heur|saat)/.test(unit)) return amount + 'h';
-        if (/^(minut|dakika)/.test(unit)) return amount + 'm';
-        return amount + unit[0];
+            if (/^(settiman|week|woch|semain|hafta)/.test(unit)) return (amount * 7) + 'd';
+            if (/^(giorn|day|tag|jour|gün)/.test(unit))          return amount + 'd';
+            if (/^(or[ae]?|hour|stund|heur|saat)/.test(unit))    return amount + 'h';
+            if (/^(minut|dakika)/.test(unit))                     return amount + 'm';
+            return amount + unit[0];
+        }
+        return null;
     }
 
     // 3. CALCOLO TEMPO DA TIMESTAMP (language-agnostic)
