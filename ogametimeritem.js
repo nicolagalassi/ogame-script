@@ -1,9 +1,9 @@
 // ==UserScript==
-// @name         OGame: Timer Visibili Item & Ufficiali (IT)
-// @namespace    https://greasyfork.org/users/tuo-profilo
-// @version      1.6
-// @description  Mostra il tempo maggiore rimanente per item e ufficiali. Converte le settimane in giorni e risolve il bug dei secondi.
-// @author       [INSERISCI IL TUO NICKNAME QUI]
+// @name         OGame: Item & Officer Timers
+// @namespace    https://greasyfork.org/users/nicolagalassi
+// @version      2.0
+// @description  Shows remaining time for active items and officers. Supports IT, EN, DE, FR, TR.
+// @author       galax
 // @match        https://*.ogame.gameforge.com/game/index.php?page=*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=ogame.gameforge.com
 // @grant        none
@@ -14,6 +14,8 @@
 
 (function() {
     'use strict';
+
+    const lang = (document.querySelector('meta[name="ogame-language"]')?.content || 'en').toLowerCase();
 
     // 1. INIEZIONE STILI CSS
     const style = document.createElement('style');
@@ -42,94 +44,94 @@
     `;
     document.head.appendChild(style);
 
-    // 2. MOTORE DI PARSING TEMPO
+    // 2. PARSING UFFICIALI — regex per lingua + normalizzazione unità
+
+    const OFFICER_REGEX = {
+        it: /(\d+)\s+(giorn\w*|settiman\w*|or[ae]|minut\w*)/i,
+        en: /(\d+)\s+(days?|weeks?|hours?|minutes?)/i,
+        de: /(\d+)\s+(tage?n?|wochen?|stunden?|minuten?)/i,
+        fr: /(\d+)\s+(jours?|semaines?|heures?|minutes?)/i,
+        tr: /(\d+)\s+(gün|hafta|saat|dakika)/i,
+    };
+
+    function parseOfficerTooltip(tooltip) {
+        const re = OFFICER_REGEX[lang] || OFFICER_REGEX.en;
+        const match = tooltip.match(re);
+        if (!match) return null;
+
+        let amount = parseInt(match[1], 10);
+        const unit = match[2].toLowerCase();
+
+        if (/^(settiman|week|woch|semain|hafta)/.test(unit)) return (amount * 7) + 'd';
+        if (/^(giorn|day|tag|jour|gün)/.test(unit))          return amount + 'd';
+        if (/^(or[ae]?|hour|stund|heur|saat)/.test(unit))    return amount + 'h';
+        if (/^(minut|dakika)/.test(unit))                     return amount + 'm';
+        return amount + unit[0];
+    }
+
+    // 3. PARSING ITEM — legge .js_duration (abbreviazioni singola lettera del gioco)
+
     function formatCompactTime(timeText) {
-        // Divide la stringa in blocchi (es. "1s 2g" diventa ["1s", "2g"])
-        let parts = timeText.trim().split(/\s+/);
-        if (parts.length === 0) return "";
+        const parts = timeText.trim().split(/\s+/);
+        if (!parts.length) return '';
 
-        let firstPart = parts[0]; 
-        let unit1 = firstPart.slice(-1).toLowerCase(); // Prende l'ultima lettera
-        let val1 = parseInt(firstPart, 10);
+        const first = parts[0];
+        const unit1 = first.slice(-1).toLowerCase();
+        const val1 = parseInt(first, 10);
 
-        // Gestione del conflitto 's' (Settimane vs Secondi)
-        if (unit1 === 's') {
-            if (parts.length > 1) {
-                let secondPart = parts[1];
-                let unit2 = secondPart.slice(-1).toLowerCase();
-                
-                // Se la seconda unità è 'g' (giorni), la 's' significa Settimane
-                if (unit2 === 'g') {
-                    let val2 = parseInt(secondPart, 10);
-                    return (val1 * 7 + val2) + "g";
-                }
+        // 'w' = settimane non ambigue (EN, DE)
+        if (unit1 === 'w') return (val1 * 7) + 'd';
+
+        // 's' ambiguo in IT: se seguito da 'g' (giorni) → settimane
+        if (unit1 === 's' && parts.length > 1) {
+            const unit2 = parts[1].slice(-1).toLowerCase();
+            if (unit2 === 'g' || unit2 === 'd') {
+                return (val1 * 7 + parseInt(parts[1], 10)) + unit2;
             }
-            // Se c'è solo 's' (es: "40s"), sono secondi (o esattamente una settimana, in entrambi i casi non moltiplichiamo)
-            return firstPart;
         }
-        
-        // Se inizia con g, o, m restituisce semplicemente quel blocco (ignorando i secondi successivi)
-        return firstPart;
+
+        return first;
     }
 
-    // 3. FUNZIONE PRINCIPALE DI AGGIORNAMENTO
+    // 4. AGGIORNAMENTO
+
     function updateTimers() {
-        
-        // --- SEZIONE 1: GESTIONE ITEM ATTIVI ---
-        const itemContainers = document.querySelectorAll('li.activePage div[data-uuid]');
-        
-        itemContainers.forEach(container => {
-            const targetLink = container.querySelector('a.active_item');
-            const durationDiv = container.querySelector('.js_duration');
-            
-            if (targetLink && durationDiv) {
-                let label = targetLink.querySelector('.custom-timer-base');
-                let timeText = durationDiv.innerText.trim();
-                
-                if (timeText !== "") {
-                    let compactTime = formatCompactTime(timeText);
 
-                    if (!label) {
-                        targetLink.classList.add('timer-parent-ready');
-                        label = document.createElement('div');
-                        label.className = 'custom-timer-base custom-timer-item';
-                        targetLink.appendChild(label);
-                    }
-                    label.innerText = compactTime;
-                }
+        // --- ITEM ATTIVI ---
+        document.querySelectorAll('li.activePage div[data-uuid]').forEach(container => {
+            const link = container.querySelector('a.active_item');
+            const durationDiv = container.querySelector('.js_duration');
+            if (!link || !durationDiv) return;
+
+            const timeText = durationDiv.innerText.trim();
+            if (!timeText) return;
+
+            let label = link.querySelector('.custom-timer-base');
+            if (!label) {
+                link.classList.add('timer-parent-ready');
+                label = document.createElement('div');
+                label.className = 'custom-timer-base custom-timer-item';
+                link.appendChild(label);
             }
+            label.innerText = formatCompactTime(timeText);
         });
 
-        // --- SEZIONE 2: GESTIONE UFFICIALI ---
-        const officers = document.querySelectorAll('#officers a.on');
-        
-        officers.forEach(officer => {
-            if (officer.querySelector('.custom-timer-base')) return; 
-            
-            const tooltipTitle = officer.getAttribute('data-tooltip-title') || "";
-            const match = tooltipTitle.match(/Attivo per altri\s+(\d+)\s+(giorn[oi]|settiman[ae]|or[ae]|minut[oi])/i);
-            
-            if (match) {
-                let amount = parseInt(match[1], 10);
-                let unit = match[2].charAt(0).toLowerCase(); 
-                
-                // Agli Ufficiali la parola è esplicita ("settimane"), quindi la conversione è sempre sicura
-                if (unit === 's') {
-                    amount = amount * 7;
-                    unit = 'g';
-                }
+        // --- UFFICIALI ---
+        document.querySelectorAll('#officers a.on').forEach(officer => {
+            if (officer.querySelector('.custom-timer-base')) return;
 
-                officer.classList.add('timer-parent-ready');
-                const label = document.createElement('div');
-                label.className = 'custom-timer-base custom-timer-officer';
-                label.innerText = amount + unit;
-                
-                officer.appendChild(label);
-            }
+            const tooltip = officer.getAttribute('data-tooltip-title') || '';
+            const timeStr = parseOfficerTooltip(tooltip);
+            if (!timeStr) return;
+
+            officer.classList.add('timer-parent-ready');
+            const label = document.createElement('div');
+            label.className = 'custom-timer-base custom-timer-officer';
+            label.innerText = timeStr;
+            officer.appendChild(label);
         });
     }
 
-    // 4. ESECUZIONE
     setInterval(updateTimers, 2000);
     updateTimers();
 
