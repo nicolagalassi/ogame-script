@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OGLight v13
 // @namespace    https://greasyfork.org/
-// @version      1.0.0
+// @version      1.1.0
 // @description  OGLight reimplementato per OGame v13 — empire, spy table, galaxy, fleet, stats
 // @author       adattato da OGLight (Oz)
 // @license      MIT
@@ -20,292 +20,296 @@
     'use strict';
 
     // ─── CSS ──────────────────────────────────────────────────────────────────
+    // Usa le stesse variabili colore di OGLight per coerenza visiva
     GM_addStyle(`
-        /* side panel */
-        .ogl13-side {
-            position: fixed; top: 0; right: 0; width: 280px; height: 100vh;
-            background: #0d1117; border-left: 1px solid #2a3a4a;
+        :root {
+            --ogl: #ffb800;
+            --metal: #9a9ac1;
+            --crystal: #8dceec;
+            --deut: #41aa9c;
+            --food: #c3a2ba;
+            --msu: #c7c7c7;
+            --mission1: #ef5f5f;
+            --mission3: #66cd3d;
+            --mission4: #00c5b2;
+            --mission5: #d97235;
+            --mission6: #e9c74b;
+            --mission7: #5ae8ea;
+            --mission8: #0cc14a;
+            --mission15: #527dcb;
+        }
+
+        /* ── Planet list ─────────────────────────────── */
+        .ogl_available {
+            display: flex; gap: 3px; padding: 1px 2px;
+            font-size: 9px; line-height: 1.2; flex-wrap: wrap;
+        }
+        .ogl_available span { color: #aaa; white-space: nowrap; }
+        .ogl_available .ogl_metal   { color: var(--metal); }
+        .ogl_available .ogl_crystal { color: var(--crystal); }
+        .ogl_available .ogl_deut    { color: var(--deut); }
+        .ogl_available .ogl_warn    { color: #ffaa00 !important; }
+        .ogl_available .ogl_danger  { color: #ff4444 !important; }
+
+        .ogl_refreshTimer {
+            font-size: 8px; color: #555; padding: 0 2px;
+            display: block;
+        }
+        .ogl_refreshTimer.ogl_danger { color: #ff6666; }
+
+        .ogl_sideIconTop, .ogl_sideIconBottom {
+            display: flex; gap: 1px; padding: 1px 0;
+            flex-wrap: wrap; min-height: 2px;
+        }
+        .ogl_fleetIcon {
+            width: 13px; height: 13px; border-radius: 2px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 8px; cursor: default; font-style: normal;
+            font-family: monospace;
+        }
+        .ogl_fleetIcon[data-mission="1"]  { background: #3a0808; color: var(--mission1); }
+        .ogl_fleetIcon[data-mission="2"]  { background: #3a0808; color: var(--mission1); }
+        .ogl_fleetIcon[data-mission="3"]  { background: #0a2a0a; color: var(--mission3); }
+        .ogl_fleetIcon[data-mission="4"]  { background: #0a2a2a; color: var(--mission4); }
+        .ogl_fleetIcon[data-mission="5"]  { background: #2a1a0a; color: var(--mission5); }
+        .ogl_fleetIcon[data-mission="6"]  { background: #2a2a0a; color: var(--mission6); }
+        .ogl_fleetIcon[data-mission="7"]  { background: #0a2a2a; color: var(--mission7); }
+        .ogl_fleetIcon[data-mission="8"]  { background: #0a2a0a; color: var(--mission8); }
+        .ogl_fleetIcon[data-mission="15"] { background: #0a0a2a; color: var(--mission15); }
+        .ogl_fleetIcon.ogl_return { opacity: .5; }
+
+        .ogl_recap {
+            padding: 4px 6px; border-top: 1px solid #1a2530;
+            font-size: 10px; color: #888;
+        }
+        .ogl_recap .ogl_icon {
+            display: flex; justify-content: space-between;
+            padding: 1px 0;
+        }
+        .ogl_recap .ogl_metal   { color: var(--metal); }
+        .ogl_recap .ogl_crystal { color: var(--crystal); }
+        .ogl_recap .ogl_deut    { color: var(--deut); }
+        .ogl_recap .ogl_msu     { color: var(--msu); }
+
+        /* ── Topbar ──────────────────────────────────── */
+        .ogl_topbar {
+            display: flex; align-items: center; gap: 3px;
+            padding: 2px 4px; background: #0d1117;
+            border-bottom: 1px solid #1a2530;
+        }
+        .ogl_topbar i, .ogl_topbar button.ogl_topbarBtn {
+            cursor: pointer; color: #888; font-size: 14px;
+            padding: 2px; border-radius: 2px; background: none; border: none;
+            transition: color .15s;
+        }
+        .ogl_topbar i:hover, .ogl_topbar button.ogl_topbarBtn:hover { color: var(--ogl); }
+        .ogl_topbar .ogl_syncBtn { margin-left: auto; }
+
+        /* ── Side panel ──────────────────────────────── */
+        .ogl_side {
+            position: fixed; top: 0; right: 0; width: 290px; height: 100vh;
+            background: #0d1117; border-left: 1px solid #1a2a3a;
             z-index: 9999; display: flex; flex-direction: column;
             transform: translateX(100%); transition: transform .2s;
             font-size: 11px; color: #ccc; overflow: hidden;
         }
-        .ogl13-side.open { transform: translateX(0); }
-        .ogl13-side-header {
+        .ogl_side.ogl_open { transform: translateX(0); }
+        .ogl_sideHeader {
             display: flex; align-items: center; justify-content: space-between;
-            padding: 6px 8px; background: #161e2e; border-bottom: 1px solid #2a3a4a;
-            font-size: 12px; font-weight: bold; color: #88aaff; flex-shrink: 0;
+            padding: 5px 8px; background: #111923; border-bottom: 1px solid #1a2a3a;
+            font-size: 11px; font-weight: bold; color: var(--ogl); flex-shrink: 0;
         }
-        .ogl13-side-close {
-            cursor: pointer; color: #666; font-size: 16px; line-height: 1;
-            padding: 2px 4px;
+        .ogl_sideClose { cursor: pointer; color: #555; font-size: 15px; }
+        .ogl_sideClose:hover { color: #ccc; }
+        .ogl_sideTabs {
+            display: flex; flex-shrink: 0;
+            background: #090d14; border-bottom: 1px solid #1a2530;
         }
-        .ogl13-side-close:hover { color: #ccc; }
-        .ogl13-side-content { overflow-y: auto; flex: 1; padding: 4px; }
-        .ogl13-side-tabs {
-            display: flex; gap: 2px; padding: 4px; flex-shrink: 0;
-            background: #0a0f18; border-bottom: 1px solid #1a2a3a;
+        .ogl_sideTab {
+            flex: 1; padding: 5px 4px; text-align: center; cursor: pointer;
+            font-size: 10px; color: #666; border-right: 1px solid #1a2530;
         }
-        .ogl13-tab {
-            flex: 1; padding: 4px 6px; text-align: center; cursor: pointer;
-            border: 1px solid #2a3a4a; border-radius: 3px; font-size: 10px;
-            color: #888; background: #111;
-        }
-        .ogl13-tab.active { color: #88aaff; border-color: #88aaff; background: #161e2e; }
+        .ogl_sideTab:last-child { border-right: none; }
+        .ogl_sideTab:hover { color: #aaa; }
+        .ogl_sideTab.ogl_active { color: var(--ogl); background: #0d1523; }
+        .ogl_sideContent { overflow-y: auto; flex: 1; }
 
-        /* topbar */
-        .ogl13-topbar {
-            display: flex; gap: 4px; padding: 2px 4px;
-            background: #0a0f18; border-bottom: 1px solid #1a2a3a;
+        /* ── Spy table ───────────────────────────────── */
+        .ogl_spytable {
+            margin-bottom: 6px; font-size: 10px; color: #ccc;
+            background: #0d1117; border: 1px solid #1a2a3a;
+            border-radius: 3px; overflow: hidden;
         }
-        .ogl13-topbar-btn {
-            width: 24px; height: 24px; border: 1px solid #2a3a4a;
-            border-radius: 3px; background: #111; cursor: pointer;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 13px; color: #888; title: attr(title);
+        .ogl_spyHeader {
+            display: grid;
+            grid-template-columns: 24px 42px 18px 18px 72px 1fr 72px 60px 60px auto;
+            background: #111923; border-bottom: 1px solid #1a2530;
+            font-size: 10px;
         }
-        .ogl13-topbar-btn:hover { color: #88aaff; border-color: #88aaff; }
-        .ogl13-topbar-btn.active { color: #ffcc44; border-color: #ffcc44; }
+        .ogl_spyHeader b {
+            padding: 4px 5px; color: #88aaff; cursor: pointer;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .ogl_spyHeader b:hover { color: var(--ogl); }
+        .ogl_spyHeader b.ogl_active { color: var(--ogl); }
+        .ogl_spyHeader b.ogl_textCenter { text-align: center; }
+        .ogl_spytableSettings { display: flex; gap: 2px; padding: 2px; }
+        .ogl_spyLine {
+            display: grid;
+            grid-template-columns: 24px 42px 18px 18px 72px 1fr 72px 60px 60px auto;
+            border-bottom: 1px solid #111820; cursor: default;
+        }
+        .ogl_spyLine > span, .ogl_spyLine > div, .ogl_spyLine > a {
+            padding: 3px 5px; overflow: hidden; text-overflow: ellipsis;
+            white-space: nowrap; display: flex; align-items: center;
+        }
+        .ogl_spyLine:hover > * { background: #111e2e; }
+        .ogl_spyLine.ogl_highlighted > * { background: #0a1f0a; }
+        .ogl_spyLine.ogl_ignored { opacity: .4; }
+        .ogl_spyLine .ogl_textRight { justify-content: flex-end; }
+        .ogl_spyLine .ogl_textCenter { justify-content: center; }
+        .ogl_spyLine .ogl_loot { color: #8be08b; text-decoration: none; }
+        .ogl_spyLine .ogl_loot:hover { text-decoration: underline; }
+        .ogl_spyLine .ogl_warning { color: #ffaa44; }
+        .ogl_spyLine .ogl_danger  { color: #ff5555; }
+        .ogl_spyLine .ogl_actions { display: flex; gap: 2px; align-items: center; padding: 2px 4px; }
+        .ogl_spyLine .ogl_button {
+            font-size: 12px; cursor: pointer; color: #666;
+            background: none; border: none; padding: 0 1px;
+        }
+        .ogl_spyLine .ogl_button:hover { color: var(--ogl); }
+        .ogl_spySum { background: #111520; }
+        .ogl_spySum > * { font-weight: bold; color: #ccc !important; }
+        .ogl_lineWrapper {}
+        .ogl_more { padding: 4px 8px; background: #090d14; }
+        .ogl_more div { display: flex; gap: 6px; font-size: 10px; padding: 2px 0; }
+        .ogl_more a { color: #88aaff; text-decoration: none; font-size: 10px; }
+        .ogl_spyTableName { display: flex; align-items: center; overflow: hidden; }
+        .ogl_spyTableName a { color: #88aaff; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .ogl_spyTableName a:hover { text-decoration: underline; }
 
-        /* pianeta sidebar */
-        .ogl13-res {
-            font-size: 9px; display: flex; gap: 3px; padding: 1px 2px;
-            flex-wrap: wrap; line-height: 1.2;
-        }
-        .ogl13-res span { color: #aaa; white-space: nowrap; }
-        .ogl13-res .ogl13-m { color: #e8a040; }
-        .ogl13-res .ogl13-c { color: #44aaff; }
-        .ogl13-res .ogl13-d { color: #44ffaa; }
-        .ogl13-res .ogl13-warn { color: #ffaa00 !important; }
-        .ogl13-res .ogl13-danger { color: #ff4444 !important; }
-        .ogl13-refresh { font-size: 9px; color: #555; padding: 0 2px; }
-        .ogl13-fleet-icons {
-            display: flex; gap: 1px; padding: 1px 2px; flex-wrap: wrap;
-        }
-        .ogl13-fleet-icon {
-            width: 14px; height: 14px; border-radius: 2px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 9px; cursor: default;
-        }
-        .ogl13-fleet-icon.m1 { background: #8b1a1a; color: #ffaaaa; }  /* attacco */
-        .ogl13-fleet-icon.m3 { background: #1a3a8b; color: #aaccff; }  /* trasporto */
-        .ogl13-fleet-icon.m4 { background: #1a5a1a; color: #aaffaa; }  /* schieramento */
-        .ogl13-fleet-icon.m5 { background: #4a3a0a; color: #ffdd88; }  /* stazionamento */
-        .ogl13-fleet-icon.m6 { background: #2a1a4a; color: #ccaaff; }  /* spionaggio */
-        .ogl13-fleet-icon.m7 { background: #1a4a4a; color: #aaffee; }  /* colonizzazione */
-        .ogl13-fleet-icon.m8 { background: #3a3a1a; color: #ffffaa; }  /* raccolta */
-        .ogl13-fleet-icon.m15{ background: #1a1a4a; color: #aaaaff; }  /* spedizione */
-        .ogl13-fleet-icon.ret{ opacity: .5; }
-        .ogl13-recap {
-            padding: 4px 6px; border-top: 1px solid #2a3a4a; font-size: 10px;
-            color: #888; background: #0a0f18;
-        }
-        .ogl13-recap div { display: flex; justify-content: space-between; }
-        .ogl13-recap .ogl13-m { color: #e8a040; }
-        .ogl13-recap .ogl13-c { color: #44aaff; }
-        .ogl13-recap .ogl13-d { color: #44ffaa; }
-
-        /* spy table */
-        .ogl13-spytable-wrap {
-            margin-bottom: 8px; border: 1px solid #2a3a4a; border-radius: 4px;
-            overflow: hidden;
-        }
-        .ogl13-spytable {
-            width: 100%; border-collapse: collapse; font-size: 10px; color: #ccc;
-        }
-        .ogl13-spytable th {
-            background: #161e2e; padding: 4px 6px; text-align: right;
-            cursor: pointer; border-bottom: 1px solid #2a3a4a; white-space: nowrap;
-            color: #88aaff; user-select: none;
-        }
-        .ogl13-spytable th:first-child,
-        .ogl13-spytable th:nth-child(2) { text-align: left; }
-        .ogl13-spytable th.sort-asc::after { content: ' ▲'; }
-        .ogl13-spytable th.sort-desc::after { content: ' ▼'; }
-        .ogl13-spytable td {
-            padding: 3px 6px; text-align: right; border-bottom: 1px solid #1a2530;
-            vertical-align: middle;
-        }
-        .ogl13-spytable td:first-child,
-        .ogl13-spytable td:nth-child(2) { text-align: left; }
-        .ogl13-spytable tr:hover td { background: #111e2e; }
-        .ogl13-spytable tr.ogl13-highlight td { background: #0a2a0a; }
-        .ogl13-spytable tr.ogl13-ignore td { opacity: .4; }
-        .ogl13-spytable .ogl13-m { color: #e8a040; }
-        .ogl13-spytable .ogl13-c { color: #44aaff; }
-        .ogl13-spytable .ogl13-d { color: #44ffaa; }
-        .ogl13-spytable .ogl13-msu { color: #ffcc44; }
-        .ogl13-spytable .ogl13-fleet-v { color: #ff6666; }
-        .ogl13-spytable .ogl13-def-v { color: #ff9944; }
-        .ogl13-spytable .ogl13-loot { color: #88ff88; }
-        .ogl13-coords-link { color: #88aaff; text-decoration: none; cursor: pointer; }
-        .ogl13-coords-link:hover { text-decoration: underline; }
-        .ogl13-spy-btn {
-            font-size: 9px; padding: 1px 4px; border: 1px solid #2a4a6a;
-            background: #0a1a2a; color: #88aaff; cursor: pointer; border-radius: 2px;
-            margin-left: 4px;
-        }
-        .ogl13-spy-btn:hover { background: #1a3a5a; }
-        .ogl13-age-old { color: #ff6666 !important; }
-        .ogl13-age-mid { color: #ffaa44 !important; }
-        .ogl13-age-fresh { color: #88ff88 !important; }
-
-        /* galaxy */
-        .ogl13-galaxy-tag {
+        /* ── Galaxy ──────────────────────────────────── */
+        .ogl_tagBtn {
             display: inline-block; width: 10px; height: 10px; border-radius: 2px;
             cursor: pointer; margin-left: 3px; vertical-align: middle;
+            border: 1px solid rgba(255,255,255,.15);
         }
-        .ogl13-galaxy-pin {
-            font-size: 10px; cursor: pointer; margin-left: 3px; vertical-align: middle;
-            color: #666;
+        .ogl_pinBtn { cursor: pointer; margin-left: 3px; vertical-align: middle; font-size: 10px; color: #555; }
+        .ogl_pinBtn.ogl_pinned { color: var(--ogl); }
+        .ogl_tagPicker {
+            position: fixed; z-index: 10001; background: #0d1117;
+            border: 1px solid #2a3a4a; border-radius: 4px; padding: 5px;
+            display: flex; gap: 4px; flex-wrap: wrap; width: 110px;
         }
-        .ogl13-galaxy-pin.pinned { color: #ffcc44; }
-        .ogl13-tag-picker {
-            position: absolute; z-index: 10000; background: #0d1117;
-            border: 1px solid #2a3a4a; border-radius: 4px; padding: 4px;
-            display: flex; gap: 3px; flex-wrap: wrap; width: 100px;
+        .ogl_tagPicker span {
+            width: 20px; height: 20px; border-radius: 3px; cursor: pointer;
+            border: 1px solid rgba(255,255,255,.2); display: block;
         }
-        .ogl13-tag-picker span {
-            width: 18px; height: 18px; border-radius: 3px; cursor: pointer;
-            border: 1px solid rgba(255,255,255,.2);
+        .ogl_tagPicker span:hover { border-color: #fff; transform: scale(1.1); }
+        .ogl_pinPicker {
+            position: fixed; z-index: 10001; background: #0d1117;
+            border: 1px solid #2a3a4a; border-radius: 4px; padding: 5px;
+            display: flex; flex-direction: column; gap: 2px;
         }
-        .ogl13-tag-picker span:hover { border-color: #fff; }
+        .ogl_pinPicker span {
+            padding: 2px 6px; font-size: 10px; cursor: pointer;
+            color: #aaa; border-radius: 2px;
+        }
+        .ogl_pinPicker span:hover { background: #1a2a3a; color: #fff; }
+        .ogl_ranking { font-size: 9px; color: #555; margin-left: 3px; }
 
-        /* fleet dispatch */
-        .ogl13-capacity-bar {
-            margin: 6px 0; height: 8px; background: #1a2530;
-            border-radius: 4px; overflow: hidden;
-        }
-        .ogl13-capacity-fill {
-            height: 100%; background: #2a7a2a; border-radius: 4px;
-            transition: width .3s;
-        }
-        .ogl13-capacity-fill.over { background: #8a2a2a; }
-        .ogl13-capacity-info {
-            font-size: 10px; color: #888; display: flex;
-            justify-content: space-between; margin: 2px 0;
-        }
+        /* tag colori */
+        .ogl_tag_red    { background: #aa2222 !important; }
+        .ogl_tag_orange { background: #aa6622 !important; }
+        .ogl_tag_yellow { background: #aaaa22 !important; }
+        .ogl_tag_green  { background: #22aa22 !important; }
+        .ogl_tag_cyan   { background: #22aaaa !important; }
+        .ogl_tag_blue   { background: #2244aa !important; }
+        .ogl_tag_purple { background: #8822aa !important; }
+        .ogl_tag_pink   { background: #aa2288 !important; }
+        .ogl_tag_white  { background: #aaaaaa !important; }
+        .ogl_tag_none   { background: #333 !important; }
 
-        /* settings */
-        .ogl13-settings { padding: 8px; }
-        .ogl13-settings h3 { color: #88aaff; font-size: 11px; margin: 8px 0 4px; }
-        .ogl13-settings label {
-            display: flex; align-items: center; gap: 6px;
-            margin: 4px 0; cursor: pointer; font-size: 10px; color: #aaa;
+        /* ── Fleet dispatch ──────────────────────────── */
+        .ogl_capacityBar {
+            margin: 6px 0; height: 7px; background: #1a2530;
+            border-radius: 3px; overflow: hidden;
         }
-        .ogl13-settings input[type=checkbox] { cursor: pointer; }
-        .ogl13-settings input[type=text],
-        .ogl13-settings input[type=number] {
-            background: #111; border: 1px solid #2a3a4a; color: #ccc;
-            padding: 2px 4px; font-size: 10px; border-radius: 2px; width: 80px;
+        .ogl_capacityFill {
+            height: 100%; background: #2a7a2a; border-radius: 3px; transition: width .3s;
         }
-        .ogl13-btn {
-            padding: 4px 10px; background: #1a3a5a; border: 1px solid #2a5a8a;
-            color: #88aaff; cursor: pointer; border-radius: 3px; font-size: 10px;
-        }
-        .ogl13-btn:hover { background: #2a4a7a; }
-        .ogl13-btn.danger { background: #3a1a1a; border-color: #6a2a2a; color: #ff8888; }
+        .ogl_capacityFill.ogl_over { background: #8a2a2a; }
+        .ogl_capacityInfo { font-size: 10px; color: #666; display: flex; justify-content: space-between; }
 
-        /* account summary */
-        .ogl13-account { padding: 4px; }
-        .ogl13-account table { width: 100%; border-collapse: collapse; font-size: 10px; }
-        .ogl13-account th {
-            background: #161e2e; padding: 3px 5px; color: #88aaff;
-            border-bottom: 1px solid #2a3a4a; text-align: left;
-        }
-        .ogl13-account td {
-            padding: 2px 5px; border-bottom: 1px solid #111e2e; color: #aaa;
-        }
-        .ogl13-account td:last-child { text-align: right; }
-        .ogl13-account .ogl13-total { color: #fff; font-weight: bold; }
+        /* ── Side panel content ──────────────────────── */
+        .ogl_accountTable { width: 100%; border-collapse: collapse; font-size: 10px; }
+        .ogl_accountTable th { background: #111923; padding: 3px 5px; color: #88aaff; border-bottom: 1px solid #1a2530; text-align: left; }
+        .ogl_accountTable td { padding: 2px 5px; border-bottom: 1px solid #0d1320; color: #aaa; }
+        .ogl_accountTable td:last-child { text-align: right; }
+        .ogl_accountTable .ogl_total td { color: #fff; font-weight: bold; }
+        .ogl_accountTable .ogl_metal   { color: var(--metal); }
+        .ogl_accountTable .ogl_crystal { color: var(--crystal); }
+        .ogl_accountTable .ogl_deut    { color: var(--deut); }
+        .ogl_accountTable .ogl_msu     { color: var(--msu); }
 
-        /* stats */
-        .ogl13-stats { padding: 4px; }
-        .ogl13-stats-row {
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 2px 4px; border-bottom: 1px solid #111e2e; font-size: 10px;
-        }
-        .ogl13-stats-row:hover { background: #111e2e; }
-        .ogl13-stats-label { color: #888; }
-        .ogl13-stats-val { color: #ffcc44; }
-
-        /* notifiche toast */
-        .ogl13-toast {
-            position: fixed; bottom: 20px; right: 20px; z-index: 99999;
-            background: #161e2e; border: 1px solid #2a5a8a;
-            border-radius: 4px; padding: 8px 14px; font-size: 11px; color: #ccc;
-            animation: ogl13-fadein .3s; max-width: 260px;
-        }
-        .ogl13-toast.error { border-color: #6a2a2a; color: #ff8888; }
-        .ogl13-toast.success { border-color: #2a6a2a; color: #88ff88; }
-        @keyframes ogl13-fadein { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
-
-        /* pinned players */
-        .ogl13-pinned-item {
+        .ogl_pinnedItem {
             display: flex; align-items: center; justify-content: space-between;
-            padding: 4px 6px; border-bottom: 1px solid #111e2e; cursor: pointer;
+            padding: 4px 8px; border-bottom: 1px solid #0d1320; cursor: pointer; font-size: 10px;
         }
-        .ogl13-pinned-item:hover { background: #111e2e; }
-        .ogl13-pinned-item .name { color: #88aaff; font-size: 10px; }
-        .ogl13-pinned-item .info { color: #666; font-size: 9px; }
-        .ogl13-pin-type {
-            font-size: 9px; padding: 1px 3px; border-radius: 2px; margin-right: 4px;
-        }
-        .ogl13-pin-friend { background:#1a4a1a; color:#aaffaa; }
-        .ogl13-pin-rush   { background:#4a2a1a; color:#ffccaa; }
-        .ogl13-pin-danger { background:#4a1a1a; color:#ffaaaa; }
-        .ogl13-pin-trade  { background:#1a3a4a; color:#aaccff; }
+        .ogl_pinnedItem:hover { background: #111923; }
+        .ogl_pinnedItem .ogl_pName { color: #88aaff; }
+        .ogl_pinnedItem .ogl_pInfo { color: #555; font-size: 9px; }
+        .ogl_pinType { font-size: 9px; padding: 1px 3px; border-radius: 2px; margin-right: 4px; }
+        .ogl_pin_friend { background: #1a4a1a; color: #aaffaa; }
+        .ogl_pin_rush   { background: #4a2a1a; color: #ffccaa; }
+        .ogl_pin_danger { background: #4a1a1a; color: #ffaaaa; }
+        .ogl_pin_trade  { background: #1a2a4a; color: #aaccff; }
 
-        /* tag colors */
-        .ogl13-tag-red    { background:#aa2222; }
-        .ogl13-tag-orange { background:#aa6622; }
-        .ogl13-tag-yellow { background:#aaaa22; }
-        .ogl13-tag-green  { background:#22aa22; }
-        .ogl13-tag-cyan   { background:#22aaaa; }
-        .ogl13-tag-blue   { background:#2244aa; }
-        .ogl13-tag-purple { background:#8822aa; }
-        .ogl13-tag-pink   { background:#aa2288; }
-        .ogl13-tag-white  { background:#aaaaaa; }
-        .ogl13-tag-none   { background:#333; }
+        .ogl_statsRow { display: flex; justify-content: space-between; padding: 3px 8px; border-bottom: 1px solid #0d1320; font-size: 10px; }
+        .ogl_statsRow:hover { background: #111923; }
+        .ogl_statsLabel { color: #777; }
+        .ogl_statsVal { color: var(--ogl); }
+
+        .ogl_settingsBlock { padding: 8px; }
+        .ogl_settingsBlock h3 { color: #88aaff; font-size: 11px; margin: 8px 0 4px; border-bottom: 1px solid #1a2530; padding-bottom: 3px; }
+        .ogl_settingsBlock label { display: flex; align-items: center; gap: 6px; margin: 4px 0; cursor: pointer; font-size: 10px; color: #aaa; }
+        .ogl_settingsBlock input[type=number], .ogl_settingsBlock input[type=text] {
+            background: #111; border: 1px solid #2a3a4a; color: #ccc;
+            padding: 2px 4px; font-size: 10px; border-radius: 2px; width: 70px;
+        }
+        .ogl_settingsBlock .ogl_btn {
+            padding: 4px 10px; background: #1a3a5a; border: 1px solid #2a5a8a;
+            color: #88aaff; cursor: pointer; border-radius: 3px; font-size: 10px; margin-top: 4px;
+        }
+        .ogl_settingsBlock .ogl_btn:hover { background: #2a4a7a; }
+        .ogl_settingsBlock .ogl_btnDanger { background: #3a1a1a; border-color: #6a2a2a; color: #ff8888; }
+
+        /* ── Toast ───────────────────────────────────── */
+        .ogl_toast {
+            position: fixed; bottom: 20px; right: 20px; z-index: 99999;
+            background: #111923; border: 1px solid #2a5a8a;
+            border-radius: 4px; padding: 8px 14px; font-size: 11px; color: #ccc;
+            animation: ogl_fadein .3s; max-width: 260px; pointer-events: none;
+        }
+        .ogl_toast.ogl_error   { border-color: #6a2a2a; color: #ff8888; }
+        .ogl_toast.ogl_success { border-color: #2a6a2a; color: #88ff88; }
+        @keyframes ogl_fadein { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
     `);
 
     // ─── COSTANTI ─────────────────────────────────────────────────────────────
     const TAG_COLORS = ['red','orange','yellow','green','cyan','blue','purple','pink','white','none'];
     const PIN_TYPES  = ['friend','rush','danger','skull','trade','money','star','ptre','none'];
-    const MISSION_ICONS = { 1:'⚔',2:'⚔',3:'▲',4:'●',5:'◆',6:'👁',7:'🌍',8:'♻',9:'💥',10:'🚀',15:'🔭',18:'🔍' };
-    const MISSION_NAMES = { 1:'Attacco',2:'ACS',3:'Trasporto',4:'Schieramento',5:'Stazionamento',6:'Spionaggio',7:'Colonizzazione',8:'Raccolta',9:'Distruzione',10:'Attacco missili',15:'Spedizione',18:'Discovery' };
-    const SHIP_NAMES = {
-        202:'Cargo leggero',203:'Cargo pesante',204:'Caccia leggero',205:'Caccia pesante',
-        206:'Incrociatore',207:'Corazzata',208:'Colonizzatrice',209:'Riciclatrice',
-        210:'Sonda spia',211:'Bombardiere',212:'Satellite solare',213:'Distruttore',
-        214:'Stella della morte',215:'Incrociatore da battaglia',217:'Bombardiere furtivo',
-        218:'Raider',219:'Esploratore',
-    };
-    const TECH_NAMES = {
-        1:'Miniera metallo',2:'Miniera cristallo',3:'Sintetizzatore deuterio',
-        4:'Centrale solare',5:'Fusore',6:'Robot',7:'Nano-robot',8:'Cantiere navale',
-        9:'Deposito metallo',10:'Deposito cristallo',11:'Cisterna deuterio',
-        12:'Laboratorio',14:'Terraformer',15:'Alleanza deposito',
-        21:'Hangar',22:'Phalanx',23:'Portale di salto',24:'Luna',
-        31:'Idroimpianto',33:'Fusione fusion',34:'Convertitore materia',
-        36:'Reattore a gravità',41:'Armeria robotizzata',42:'Magazzino cristallo',
-        43:'Magazzino deuterio',44:'Re-entry tech',
-        109:'Motore ad impulsi',110:'Motore a reazione',111:'Motore iperspaziale',
-        113:'Armature',114:'Scudi',115:'Armi',
-        120:'Iperspace',121:'Informatica',122:'Astrofisica',
-        123:'IRN',124:'Graviton',
-        // lifeform buildings 11xxx omitted for brevity
-    };
-    const DB_VERSION = 1;
+    const MISSION_LETTERS = { 1:'A',2:'A',3:'T',4:'S',5:'H',6:'E',7:'C',8:'R',9:'D',10:'M',15:'X',18:'?',0:'?' };
 
     // ─── UTILITIES ────────────────────────────────────────────────────────────
     const Util = {
-        formatNum(n, digits = 0) {
+        formatNum(n) {
             if (n == null || isNaN(n)) return '-';
             const abs = Math.abs(n);
             if (abs >= 1e9) return (n / 1e9).toFixed(1) + 'G';
             if (abs >= 1e6) return (n / 1e6).toFixed(1) + 'M';
-            if (abs >= 1e3) return (n / 1e3).toFixed(digits > 0 ? digits : 0) + 'K';
-            return n.toFixed(0);
+            if (abs >= 1e3) return (n / 1e3).toFixed(0) + 'K';
+            return String(Math.round(n));
         },
         formatTime(sec) {
             sec = Math.abs(Math.round(sec));
@@ -320,66 +324,54 @@
             return String(g).padStart(3,'0') + String(s).padStart(3,'0') + String(p).padStart(2,'0');
         },
         parseCoords(str) {
-            const m = String(str).match(/(\d+)[:\s](\d+)[:\s](\d+)/);
-            return m ? { g: +m[1], s: +m[2], p: +m[3] } : null;
+            const m = String(str || '').match(/(\d+)[:\s](\d+)[:\s](\d+)/);
+            return m ? { g:+m[1], s:+m[2], p:+m[3] } : null;
         },
         serverNow() {
             try {
                 const st = unsafeWindow.serverTime;
                 if (st instanceof Date) return Math.floor(st.getTime() / 1000);
-            } catch (e) {}
+            } catch(e) {}
             return Math.floor(Date.now() / 1000);
         },
-        fleetLink(g, s, p, type = 1) {
-            return `/game/index.php?page=ingame&component=fleetdispatch&galaxy=${g}&system=${s}&position=${p}&type=${type}&mission=6`;
+        msu(m, c, d) { return (m / 3) + (c * 2 / 3) + d; },
+        fleetLink(g, s, p, type, mission) {
+            return `/game/index.php?page=ingame&component=fleetdispatch&galaxy=${g}&system=${s}&position=${p}&type=${type}&mission=${mission}`;
         },
-        galaxyLink(g, s) {
-            return `/game/index.php?page=ingame&component=galaxy&galaxy=${g}&system=${s}`;
-        },
-        msu(m, c, d) {
-            return m / 3 + c * 2 / 3 + d;
-        },
-        toast(msg, type = 'info', duration = 3000) {
+        galaxyLink(g, s) { return `/game/index.php?page=ingame&component=galaxy&galaxy=${g}&system=${s}`; },
+        toast(msg, type, duration) {
             const el = document.createElement('div');
-            el.className = `ogl13-toast${type !== 'info' ? ' ' + type : ''}`;
+            el.className = `ogl_toast${type ? ' ogl_' + type : ''}`;
             el.textContent = msg;
             document.body.appendChild(el);
-            setTimeout(() => el.remove(), duration);
+            setTimeout(() => el.remove(), duration || 3000);
         },
-        el(tag, cls, html = '') {
+        qs(sel, ctx)  { return (ctx || document).querySelector(sel); },
+        qsa(sel, ctx) { return [...(ctx || document).querySelectorAll(sel)]; },
+        el(tag, cls, html) {
             const e = document.createElement(tag);
-            if (cls) e.className = cls;
+            if (cls)  e.className = cls;
             if (html) e.innerHTML = html;
             return e;
         },
-        qs(sel, ctx = document) { return ctx.querySelector(sel); },
-        qsa(sel, ctx = document) { return [...ctx.querySelectorAll(sel)]; },
+        storageRatio(val, stor) {
+            if (!stor) return 0;
+            return val / stor;
+        },
     };
 
     // ─── META ──────────────────────────────────────────────────────────────────
     const Meta = {
-        _cache: {},
-        _m(name) {
-            if (!(name in this._cache)) {
-                this._cache[name] = document.querySelector(`meta[name="${name}"]`)?.content || '';
-            }
-            return this._cache[name];
-        },
-        get playerId()    { return parseInt(this._m('ogame-player-id')) || 0; },
-        get playerName()  { return this._m('ogame-player-name'); },
-        get planetId()    { return parseInt(this._m('ogame-planet-id')) || 0; },
-        get planetType()  { return this._m('ogame-planet-type') || 'planet'; },
+        _c: {},
+        _m(n) { return this._c[n] ?? (this._c[n] = document.querySelector(`meta[name="${n}"]`)?.content || ''); },
+        get playerId()   { return parseInt(this._m('ogame-player-id')) || 0; },
+        get playerName() { return this._m('ogame-player-name'); },
+        get planetId()   { return parseInt(this._m('ogame-planet-id')) || 0; },
+        get planetType() { return this._m('ogame-planet-type') || 'planet'; },
         get planetCoords(){ return this._m('ogame-planet-coordinates'); },
-        get language()    { return this._m('ogame-language') || 'en'; },
-        get universe()    { return this._m('ogame-universe'); },
-        get universeName(){ return this._m('ogame-universe-name'); },
-        get uniSpeed()    { return parseInt(this._m('ogame-universe-speed')) || 1; },
-        get speedPeace()  { return parseInt(this._m('ogame-universe-speed-fleet-peaceful')) || 1; },
-        get speedWar()    { return parseInt(this._m('ogame-universe-speed-fleet-war')) || 1; },
-        get speedHold()   { return parseInt(this._m('ogame-universe-speed-fleet-holding')) || 1; },
-        get donutGal()    { return this._m('ogame-donut-galaxy') === '1'; },
-        get donutSys()    { return this._m('ogame-donut-system') === '1'; },
-        get token()       { try { return unsafeWindow.token || ''; } catch(e) { return ''; } },
+        get language()   { return this._m('ogame-language') || 'en'; },
+        get universe()   { return this._m('ogame-universe'); },
+        get token() { try { return unsafeWindow.token || ''; } catch(e) { return ''; } },
         get dbKey() {
             const u = this.universe.replace(/https?:\/\//, '').split('.')[0];
             return `ogl13_${this.playerId}_${u}`;
@@ -391,250 +383,246 @@
         get isFleet()    { return this.page === 'fleetdispatch'; },
         get isGalaxy()   { return this.page === 'galaxy'; },
         get isMessages() { return this.page === 'messages'; },
-        get isMovement() { return this.page === 'movement'; },
-        get isOverview() { return this.page === 'overview' || this.page === 'ingame'; },
-        reset() { this._cache = {}; },
+        reset() { this._c = {}; },
     };
 
     // ─── DB ───────────────────────────────────────────────────────────────────
     class DB {
-        constructor() {
-            this._key = null;
-            this.data = null;
-        }
+        constructor() { this._key = null; this.data = null; }
 
         _defaults() {
             return {
-                version: DB_VERSION,
-                myPlanets: {},      // { [planetId]: { coords, type, metal, crystal, deut, food, ... } }
-                udb: {},            // { [playerId]: { name, status, pin, score, planets, liveUpdate } }
-                pdb: {},            // { ['g:s:p']: { uid, pid, mid, acti, debris } }
-                tdb: {},            // { ['gggsssp']: { tag } }
-                messageDb: {},      // { [hashcode]: spy report data }
-                stats: {},          // { ['YYYY-M-D']: { raid, expe, debris, ... } }
+                myPlanets: {},
+                udb: {},
+                pdb: {},
+                tdb: {},
+                messageDb: {},
+                stats: {},
                 options: {
                     showResources: true,
                     showFleetIcons: true,
                     showSpyTable: true,
-                    showGalaxyTags: true,
+                    showGalaxyEnhancements: true,
                     probeCount: 6,
-                    fleetLimiter: false,
                     browserNotif: false,
                     ptreTK: '',
                 },
                 lastEmpireUpdate: 0,
-                lastApiUpdate: 0,
-                fleetLimiter: { ships: {}, resources: {} },
-                quickRaidList: [],
-                lastFleet: null,
+                fleetEvents: [],
             };
         }
 
         init() {
             this._key = Meta.dbKey;
-            if (!this._key || Meta.playerId === 0) return false;
+            if (!this._key || !Meta.playerId) return false;
             try {
                 const raw = GM_getValue(this._key, null);
-                if (raw) {
-                    this.data = { ...this._defaults(), ...JSON.parse(raw) };
-                } else {
-                    this.data = this._defaults();
-                }
-            } catch (e) {
-                this.data = this._defaults();
-            }
+                this.data = raw ? { ...this._defaults(), ...JSON.parse(raw) } : this._defaults();
+            } catch(e) { this.data = this._defaults(); }
             return true;
         }
 
         save() {
             if (!this._key || !this.data) return;
-            try {
-                GM_setValue(this._key, JSON.stringify(this.data));
-            } catch (e) {}
+            try { GM_setValue(this._key, JSON.stringify(this.data)); } catch(e) {}
         }
 
-        get(path) {
-            if (!this.data) return undefined;
-            return path.split('.').reduce((o, k) => o?.[k], this.data);
-        }
-
-        set(path, val) {
+        updatePlanet(id, data) {
             if (!this.data) return;
-            const keys = path.split('.');
-            let obj = this.data;
-            for (let i = 0; i < keys.length - 1; i++) {
-                if (!(keys[i] in obj)) obj[keys[i]] = {};
-                obj = obj[keys[i]];
-            }
-            obj[keys[keys.length - 1]] = val;
+            this.data.myPlanets[id] = { ...(this.data.myPlanets[id] || {}), ...data, lastRefresh: Util.serverNow() };
         }
 
-        updatePlanet(planetId, data) {
+        saveReport(hash, data) {
             if (!this.data) return;
-            this.data.myPlanets[planetId] = {
-                ...(this.data.myPlanets[planetId] || {}),
-                ...data,
-                lastRefresh: Util.serverNow(),
-            };
-        }
-
-        saveReport(hashcode, data) {
-            if (!this.data) return;
-            this.data.messageDb[hashcode] = { ...data, savedAt: Util.serverNow() };
-            // limita a 500 report
+            this.data.messageDb[hash] = { ...data, savedAt: Util.serverNow() };
             const keys = Object.keys(this.data.messageDb);
-            if (keys.length > 500) {
-                const sorted = keys.sort((a,b) => (this.data.messageDb[a].savedAt||0) - (this.data.messageDb[b].savedAt||0));
-                sorted.slice(0, keys.length - 500).forEach(k => delete this.data.messageDb[k]);
+            if (keys.length > 600) {
+                keys.sort((a,b) => (this.data.messageDb[a].savedAt||0) - (this.data.messageDb[b].savedAt||0))
+                    .slice(0, keys.length - 600).forEach(k => delete this.data.messageDb[k]);
             }
         }
 
-        getOption(key, def = null) {
-            return this.data?.options?.[key] ?? def;
-        }
+        getOpt(k, def) { return this.data?.options?.[k] ?? (def ?? true); }
+        setOpt(k, v) { if (this.data) this.data.options[k] = v; }
 
-        setOption(key, val) {
-            if (!this.data) return;
-            this.data.options[key] = val;
-        }
-
-        todayKey() {
-            const d = new Date();
-            return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
-        }
+        todayKey() { const d = new Date(); return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`; }
 
         addStat(type, data) {
             if (!this.data) return;
             const k = this.todayKey();
             if (!this.data.stats[k]) this.data.stats[k] = {};
-            const s = this.data.stats[k];
-            if (!s[type]) s[type] = { metal:0, crystal:0, deut:0, food:0, count:0 };
-            s[type].metal   += data.metal   || 0;
-            s[type].crystal += data.crystal || 0;
-            s[type].deut    += data.deut    || 0;
-            s[type].food    += data.food    || 0;
-            s[type].count   += 1;
-            // pulisce stat più vecchie di 90 giorni
-            const cutoff = Date.now() - 90 * 86400000;
-            Object.keys(this.data.stats).forEach(k2 => {
-                if (new Date(k2).getTime() < cutoff) delete this.data.stats[k2];
-            });
+            if (!this.data.stats[k][type]) this.data.stats[k][type] = { metal:0, crystal:0, deut:0, count:0 };
+            const s = this.data.stats[k][type];
+            s.metal   += data.metal   || 0;
+            s.crystal += data.crystal || 0;
+            s.deut    += data.deut    || 0;
+            s.count   += 1;
         }
     }
 
     // ─── PLANET LIST MANAGER ──────────────────────────────────────────────────
+    // Usa i selettori esatti di OGLight: .smallplanet → .planetlink / .moonlink
     class PlanetListManager {
-        constructor(db) {
-            this.db = db;
-            this.fleetEvents = [];
-        }
+        constructor(db) { this.db = db; this.fleetEvents = []; }
 
         init() {
             this._injectTopbar();
-            this._updateAll();
-            this._injectRecap();
+            this._setupPlanets();
+            this._updateAllResources();
+            this._updateRecap();
         }
 
         _injectTopbar() {
             const planetList = Util.qs('#planetList');
-            if (!planetList) return;
-            const bar = Util.el('div', 'ogl13-topbar');
+            if (!planetList || Util.qs('.ogl_topbar', planetList)) return;
+
+            const bar = Util.el('div', 'ogl_topbar');
             const btns = [
-                { icon: '📦', title: 'Collect tutte le risorse', action: () => this._collectAll() },
-                { icon: '👤', title: 'Account Summary', action: () => window.ogl13?.ui?.openTab('account') },
-                { icon: '📌', title: 'Pinned Players', action: () => window.ogl13?.ui?.openTab('pinned') },
-                { icon: '🏷', title: 'Tagged Planets', action: () => window.ogl13?.ui?.openTab('tagged') },
-                { icon: '⚙', title: 'Impostazioni', action: () => window.ogl13?.ui?.openTab('settings') },
-                { icon: '🔄', title: 'Sincronizza Empire', action: () => window.ogl13?.empire?.fetchAll() },
+                { text:'◈', title:'Account Summary',     fn: () => window.ogl13?.ui?.openTab('account') },
+                { text:'▣', title:'Tagged Planets',      fn: () => window.ogl13?.ui?.openTab('tagged') },
+                { text:'◉', title:'Pinned Players',      fn: () => window.ogl13?.ui?.openTab('pinned') },
+                { text:'●', title:'Statistiche',         fn: () => window.ogl13?.ui?.openTab('stats') },
+                { text:'⚙', title:'Impostazioni',        fn: () => window.ogl13?.ui?.openTab('settings') },
+                { text:'↺', title:'Sincronizza Empire', fn: () => window.ogl13?.empire?.fetchAll(), cls:'ogl_syncBtn' },
             ];
             btns.forEach(b => {
-                const btn = Util.el('div', 'ogl13-topbar-btn');
+                const btn = document.createElement('button');
+                btn.className = 'ogl_topbarBtn' + (b.cls ? ' ' + b.cls : '');
+                btn.textContent = b.text;
                 btn.title = b.title;
-                btn.textContent = b.icon;
-                btn.addEventListener('click', b.action);
+                btn.addEventListener('click', b.fn);
                 bar.appendChild(btn);
             });
-            planetList.insertAdjacentElement('beforebegin', bar);
+            planetList.prepend(bar);
         }
 
-        _updateAll() {
-            if (!this.db.getOption('showResources', true) && !this.db.getOption('showFleetIcons', true)) return;
-            Util.qsa('#planetList .smallplanet').forEach(el => this._updatePlanet(el));
+        // Inietta struttura OGLight su ogni .smallplanet
+        _setupPlanets() {
+            if (!this.db.getOpt('showResources') && !this.db.getOpt('showFleetIcons')) return;
+
+            Util.qsa('#planetList .smallplanet').forEach(line => {
+                const planet = line.querySelector('.planetlink');
+                const moon   = line.querySelector('.moonlink');
+
+                if (planet) {
+                    if (!planet.querySelector('.ogl_available')) {
+                        Util.el('div', 'ogl_available'); // sarà riempito dopo
+                        planet.insertAdjacentElement('beforeend', Util.el('div', 'ogl_available'));
+                    }
+                    if (!line.querySelector('.ogl_refreshTimer.ogl_planet')) {
+                        line.insertAdjacentElement('beforeend', Util.el('div', 'ogl_refreshTimer ogl_planet'));
+                    }
+                    if (!line.querySelector('.ogl_sideIconTop')) {
+                        line.insertAdjacentElement('beforeend', Util.el('div', 'ogl_sideIconTop'));
+                    }
+                }
+                if (moon) {
+                    if (!moon.querySelector('.ogl_available')) {
+                        moon.insertAdjacentElement('beforeend', Util.el('div', 'ogl_available'));
+                    }
+                    if (!line.querySelector('.ogl_sideIconBottom')) {
+                        line.insertAdjacentElement('beforeend', Util.el('div', 'ogl_sideIconBottom'));
+                    }
+                }
+            });
         }
 
-        _updatePlanet(el) {
-            // leggi ID pianeta dal link
-            const link = Util.qs('.planetlink, .moonlink', el);
-            if (!link) return;
-            const href = link.getAttribute('href') || '';
-            const m = href.match(/cp=(\d+)/);
-            if (!m) return;
-            const planetId = parseInt(m[1]);
-            const pdata = this.db.data?.myPlanets?.[planetId];
-
-            // rimuovi vecchi elementi OGL
-            Util.qsa('.ogl13-res, .ogl13-refresh, .ogl13-fleet-icons', el).forEach(e => e.remove());
-
-            if (pdata && this.db.getOption('showResources', true)) {
-                this._injectResources(el, pdata);
-            }
-
-            if (this.db.getOption('showFleetIcons', true)) {
-                this._injectFleetIcons(el, planetId, pdata?.coords);
-            }
-        }
-
-        _injectResources(el, pdata) {
-            const div = Util.el('div', 'ogl13-res');
+        _updateAllResources() {
+            if (!this.db.getOpt('showResources')) return;
             const now = Util.serverNow();
-            const age = now - (pdata.lastRefresh || 0);
-            const prod = pdata.lastRefresh ? age : 0;
 
-            const m = (pdata.metal   || 0) + (pdata.prodMetal   || 0) * prod;
-            const c = (pdata.crystal || 0) + (pdata.prodCrystal || 0) * prod;
-            const d = (pdata.deut    || 0) + (pdata.prodDeut    || 0) * prod;
+            Util.qsa('#planetList .smallplanet').forEach(line => {
+                const planet = line.querySelector('.planetlink');
+                const moon   = line.querySelector('.moonlink');
+
+                if (planet) {
+                    const idMatch = (planet.getAttribute('href') || '').match(/cp=(\d+)/);
+                    if (idMatch) this._fillResources(planet, parseInt(idMatch[1]), now, line.querySelector('.ogl_refreshTimer.ogl_planet'));
+                }
+                if (moon) {
+                    const idMatch = (moon.getAttribute('href') || '').match(/cp=(\d+)/);
+                    if (idMatch) this._fillResources(moon, parseInt(idMatch[1]), now, null);
+                }
+            });
+        }
+
+        _fillResources(link, pid, now, timerEl) {
+            const resDiv = link.querySelector('.ogl_available');
+            if (!resDiv) return;
+            const p = this.db.data?.myPlanets?.[pid];
+            if (!p) { resDiv.innerHTML = ''; return; }
+
+            const age  = now - (p.lastRefresh || 0);
+            const prod = p.lastRefresh ? age : 0;
+            const m = (p.metal   || 0) + (p.prodMetal   || 0) * prod;
+            const c = (p.crystal || 0) + (p.prodCrystal || 0) * prod;
+            const d = (p.deut    || 0) + (p.prodDeut    || 0) * prod;
 
             const cls = (val, stor) => {
-                if (!stor || stor === 0) return '';
-                const r = val / stor;
-                if (r > .9) return ' ogl13-danger';
-                if (r > .75) return ' ogl13-warn';
+                const r = Util.storageRatio(val, stor);
+                if (r > .9) return ' ogl_danger';
+                if (r > .75) return ' ogl_warn';
                 return '';
             };
 
-            div.innerHTML = `<span class="ogl13-m${cls(m, pdata.metalStorage)}">${Util.formatNum(m)}</span>` +
-                            `<span class="ogl13-c${cls(c, pdata.crystalStorage)}">${Util.formatNum(c)}</span>` +
-                            `<span class="ogl13-d${cls(d, pdata.deutStorage)}">${Util.formatNum(d)}</span>`;
+            resDiv.innerHTML =
+                `<span class="ogl_metal${cls(m, p.metalStorage)}">${Util.formatNum(m)}</span>` +
+                `<span class="ogl_crystal${cls(c, p.crystalStorage)}">${Util.formatNum(c)}</span>` +
+                `<span class="ogl_deut${cls(d, p.deutStorage)}">${Util.formatNum(d)}</span>`;
 
-            if (pdata.lastRefresh) {
-                const minAgo = Math.floor(age / 60);
-                const refresh = Util.el('div', 'ogl13-refresh');
-                refresh.textContent = minAgo < 60 ? `${minAgo}m fa` : `${Math.floor(minAgo/60)}h fa`;
-                el.appendChild(refresh);
+            if (timerEl && p.lastRefresh) {
+                const min = Math.floor(age / 60);
+                timerEl.textContent = min < 60 ? `${min}m` : `${Math.floor(min/60)}h`;
+                timerEl.className = `ogl_refreshTimer ogl_planet${min > 120 ? ' ogl_danger' : ''}`;
             }
-            el.appendChild(div);
         }
 
-        _injectFleetIcons(el, planetId, coords) {
-            if (!this.fleetEvents.length) return;
-            const relevant = this.fleetEvents.filter(ev => {
-                return ev.destId === planetId || ev.originId === planetId;
+        _updateFleetIcons() {
+            if (!this.db.getOpt('showFleetIcons')) return;
+            const myPlanets = this.db.data?.myPlanets || {};
+
+            // costruisce mappa coords → id
+            const coordToId = {};
+            Object.entries(myPlanets).forEach(([id, p]) => {
+                if (p.coords) coordToId[`${p.coords}:${p.type === 'moon' ? 3 : 1}`] = parseInt(id);
             });
-            if (!relevant.length) return;
-            const div = Util.el('div', 'ogl13-fleet-icons');
-            relevant.forEach(ev => {
-                const icon = Util.el('div', `ogl13-fleet-icon m${ev.mission}${ev.returning ? ' ret' : ''}`);
-                icon.title = `${MISSION_NAMES[ev.mission] || ev.mission} — ${ev.returning ? 'ritorno' : 'arrivo'} ${new Date(ev.arrivalTime * 1000).toLocaleTimeString('it-IT', {hour:'2-digit',minute:'2-digit'})}`;
-                icon.textContent = MISSION_ICONS[ev.mission] || ev.mission;
-                div.appendChild(icon);
+
+            Util.qsa('#planetList .smallplanet').forEach(line => {
+                const topDiv = line.querySelector('.ogl_sideIconTop');
+                const botDiv = line.querySelector('.ogl_sideIconBottom');
+                if (topDiv) topDiv.innerHTML = '';
+                if (botDiv) botDiv.innerHTML = '';
+
+                const planet = line.querySelector('.planetlink');
+                const moon   = line.querySelector('.moonlink');
+                const getPid = (el) => {
+                    const m = (el?.getAttribute('href') || '').match(/cp=(\d+)/);
+                    return m ? parseInt(m[1]) : null;
+                };
+                const pid = getPid(planet);
+                const mid = getPid(moon);
+
+                this.fleetEvents.forEach(ev => {
+                    const isDest   = ev.destId === pid || ev.destId === mid;
+                    const isOrigin = ev.originId === pid || ev.originId === mid;
+                    if (!isDest && !isOrigin) return;
+
+                    const targetDiv = (ev.destId === mid || ev.originId === mid) ? botDiv : topDiv;
+                    if (!targetDiv) return;
+
+                    const icon = Util.el('i', `ogl_fleetIcon${ev.returning ? ' ogl_return' : ''}`);
+                    icon.dataset.mission = ev.mission;
+                    icon.title = `Missione ${ev.mission}${ev.returning ? ' (ritorno)' : ''} — ${new Date(ev.arrivalTime * 1000).toLocaleTimeString('it-IT', {hour:'2-digit',minute:'2-digit'})}`;
+                    icon.textContent = MISSION_LETTERS[ev.mission] || '?';
+                    targetDiv.appendChild(icon);
+                });
             });
-            el.appendChild(div);
         }
 
-        _injectRecap() {
+        _updateRecap() {
             const planetList = Util.qs('#planetList');
             if (!planetList) return;
-            Util.qs('.ogl13-recap', planetList)?.remove();
+            Util.qs('.ogl_recap', planetList)?.remove();
 
             const planets = Object.values(this.db.data?.myPlanets || {});
             if (!planets.length) return;
@@ -643,206 +631,150 @@
             let totM = 0, totC = 0, totD = 0;
             planets.forEach(p => {
                 const age = now - (p.lastRefresh || 0);
-                const prod = p.lastRefresh ? age : 0;
-                totM += (p.metal   || 0) + (p.prodMetal   || 0) * prod;
-                totC += (p.crystal || 0) + (p.prodCrystal || 0) * prod;
-                totD += (p.deut    || 0) + (p.prodDeut    || 0) * prod;
+                totM += (p.metal   || 0) + (p.prodMetal   || 0) * (p.lastRefresh ? age : 0);
+                totC += (p.crystal || 0) + (p.prodCrystal || 0) * (p.lastRefresh ? age : 0);
+                totD += (p.deut    || 0) + (p.prodDeut    || 0) * (p.lastRefresh ? age : 0);
             });
 
-            const recap = Util.el('div', 'ogl13-recap');
-            recap.innerHTML = `
-                <div><span class="ogl13-m">M</span><span class="ogl13-m">${Util.formatNum(totM)}</span></div>
-                <div><span class="ogl13-c">C</span><span class="ogl13-c">${Util.formatNum(totC)}</span></div>
-                <div><span class="ogl13-d">D</span><span class="ogl13-d">${Util.formatNum(totD)}</span></div>
-                <div><span>MSU</span><span class="ogl13-msu">${Util.formatNum(Util.msu(totM,totC,totD))}</span></div>
-            `;
+            const recap = Util.el('div', 'ogl_recap');
+            recap.innerHTML =
+                `<div class="ogl_icon ogl_metal"><span>M</span><span>${Util.formatNum(totM)}</span></div>` +
+                `<div class="ogl_icon ogl_crystal"><span>C</span><span>${Util.formatNum(totC)}</span></div>` +
+                `<div class="ogl_icon ogl_deut"><span>D</span><span>${Util.formatNum(totD)}</span></div>` +
+                `<div class="ogl_icon ogl_msu"><span>MSU</span><span>${Util.formatNum(Util.msu(totM,totC,totD))}</span></div>`;
             planetList.appendChild(recap);
         }
 
         setFleetEvents(events) {
             this.fleetEvents = events;
-            this._updateAll();
-            this._injectRecap();
+            this._updateFleetIcons();
         }
 
-        _collectAll() {
-            Util.toast('Funzione collect: naviga su ogni pianeta per raccogliere risorse.', 'info');
+        refresh() {
+            this._updateAllResources();
+            this._updateFleetIcons();
+            this._updateRecap();
         }
     }
 
     // ─── EMPIRE MANAGER ───────────────────────────────────────────────────────
     class EmpireManager {
-        constructor(db) {
-            this.db = db;
-            this.fetching = false;
-        }
+        constructor(db) { this.db = db; this.fetching = false; }
 
         init() {
-            // fetch automatico se dati vecchi > 3 minuti
             const age = Util.serverNow() - (this.db.data?.lastEmpireUpdate || 0);
-            if (age > 180) {
-                setTimeout(() => this.fetchAll(), 2000);
-            }
+            if (age > 180) setTimeout(() => this.fetchAll(), 3000);
         }
 
         async fetchAll() {
             if (this.fetching) return;
             this.fetching = true;
-            Util.toast('Aggiornamento empire in corso…', 'info', 5000);
+            Util.toast('Aggiornamento empire…', null, 6000);
             try {
-                await this._fetchEmpire(0); // pianeti
-                await this._fetchEmpire(1); // lune
+                await this._fetch(0);
+                await this._fetch(1);
                 this.db.data.lastEmpireUpdate = Util.serverNow();
                 this.db.save();
+                window.ogl13?.planetList?.refresh();
                 Util.toast('Empire aggiornato!', 'success');
-                window.ogl13?.planetList?.init();
-            } catch (e) {
-                Util.toast('Errore aggiornamento empire: ' + e.message, 'error');
+            } catch(e) {
+                Util.toast('Errore empire: ' + e.message, 'error');
             }
             this.fetching = false;
         }
 
-        _fetchEmpire(type) {
-            return new Promise((resolve, reject) => {
-                const url = `/game/index.php?page=ajax&component=empire&ajax=1&planetType=${type}&token=${Meta.token}`;
+        _fetch(type) {
+            return new Promise((res, rej) => {
                 GM_xmlhttpRequest({
                     method: 'GET',
-                    url: location.origin + url,
+                    url: `${location.origin}/game/index.php?page=ajax&component=empire&ajax=1&planetType=${type}`,
                     headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                    onload: (res) => {
-                        try {
-                            this._parseEmpireHtml(res.responseText, type);
-                            resolve();
-                        } catch (e) {
-                            reject(e);
-                        }
+                    onload: (r) => {
+                        try { this._parseHtml(r.responseText, type); res(); }
+                        catch(e) { rej(e); }
                     },
-                    onerror: () => reject(new Error('Network error')),
+                    onerror: () => rej(new Error('network')),
                 });
             });
         }
 
-        _parseEmpireHtml(html, type) {
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(html, 'text/html');
-
-            // ogni pianeta/luna è in un .listOfPlanets .smallplanet o simile
-            // oppure nei dati inline script — proviamo entrambi gli approcci
-
-            // approccio 1: cerca script inline con dati pianeta
-            const scripts = Util.qsa('script', doc);
-            scripts.forEach(s => {
-                const txt = s.textContent;
-                if (!txt.includes('currentPlanet') && !txt.includes('metalOnPlanet')) return;
-                this._extractPlanetFromScript(txt, type);
-            });
-
-            // approccio 2: cerca i .planet-js-pos elementi con data attributes
-            Util.qsa('[data-planet-id], [data-moon-id]', doc).forEach(el => {
-                this._extractPlanetFromElement(el, type);
-            });
-
-            // approccio 3: cerca tabella empire (se esiste)
-            this._parseEmpireTable(doc, type);
-        }
-
-        _extractPlanetFromScript(txt, type) {
-            try {
-                const planetId = this._extractVar(txt, 'currentPlanetId') ||
-                                 this._extractVar(txt, 'currentSpaceObjectId');
-                if (!planetId) return;
-
-                const data = {
-                    type: type === 1 ? 'moon' : 'planet',
-                    coords: this._extractVar(txt, 'currentPlanet', 'coords') || '',
-                    metal:   this._extractNum(txt, 'metalOnPlanet'),
-                    crystal: this._extractNum(txt, 'crystalOnPlanet'),
-                    deut:    this._extractNum(txt, 'deuteriumOnPlanet'),
-                    food:    this._extractNum(txt, 'foodOnPlanet'),
-                    metalStorage:   this._extractNum(txt, 'metalStorageCapacity'),
-                    crystalStorage: this._extractNum(txt, 'crystalStorageCapacity'),
-                    deutStorage:    this._extractNum(txt, 'deuteriumStorageCapacity'),
-                };
-
-                if (planetId) this.db.updatePlanet(parseInt(planetId), data);
-            } catch (e) {}
-        }
-
-        _extractPlanetFromElement(el, type) {
-            const planetId = parseInt(el.dataset.planetId || el.dataset.moonId || 0);
-            if (!planetId) return;
-            const coords = el.dataset.coords || '';
-            const resources = {};
-            Util.qsa('.resource_metal, [data-metal]', el).forEach(r => {
-                resources.metal = parseInt(r.dataset.amount || r.textContent.replace(/\D/g,'')) || 0;
-            });
-            if (Object.keys(resources).length || coords) {
-                this.db.updatePlanet(planetId, { type: type === 1 ? 'moon' : 'planet', coords, ...resources });
+        _parseHtml(html, type) {
+            // L'empire page espone variabili JS per ogni pianeta in script inline
+            // Cerca pattern: var currentSpaceObjectId = N; var metalOnPlanet = N; ecc.
+            const scriptRe = /<script[^>]*>([\s\S]*?)<\/script>/gi;
+            let match;
+            while ((match = scriptRe.exec(html)) !== null) {
+                const txt = match[1];
+                if (!txt.includes('metalOnPlanet') && !txt.includes('currentSpaceObjectId') && !txt.includes('currentPlanetId')) continue;
+                this._extractFromScript(txt, type);
             }
         }
 
-        _parseEmpireTable(doc, type) {
-            // L'empire view ha righe per ogni pianeta con celle per ogni edificio
-            // Struttura tipica: table.listOfPlanets o div con classi specifiche
-            const rows = Util.qsa('.planet-row, .empire-row, [data-coords]', doc);
-            rows.forEach(row => {
-                const planetId = parseInt(row.dataset.planetId || row.dataset.id || 0);
-                if (!planetId) return;
-                const data = { type: type === 1 ? 'moon' : 'planet' };
-                const coords = row.dataset.coords || Util.qs('.planet-coords', row)?.textContent?.trim() || '';
-                if (coords) data.coords = coords;
+        _extractFromScript(txt, type) {
+            const num = (name) => {
+                const m = txt.match(new RegExp(`var\\s+${name}\\s*=\\s*([\\d.]+)`));
+                return m ? parseFloat(m[1]) : 0;
+            };
+            const str = (name) => {
+                const m = txt.match(new RegExp(`var\\s+${name}\\s*=\\s*["']([^"']+)["']`));
+                return m ? m[1] : '';
+            };
+            const obj = (name) => {
+                const m = txt.match(new RegExp(`var\\s+${name}\\s*=\\s*(\\{[^;]+\\})`));
+                try { return m ? JSON.parse(m[1]) : null; } catch(e) { return null; }
+            };
 
-                // edifici
-                Util.qsa('[data-technology-id], [data-tech-id]', row).forEach(cell => {
-                    const techId = parseInt(cell.dataset.technologyId || cell.dataset.techId || 0);
-                    const level  = parseInt(cell.dataset.level || cell.textContent || 0);
-                    if (techId && !isNaN(level)) data[techId] = level;
-                });
+            const pid = num('currentSpaceObjectId') || num('currentPlanetId');
+            if (!pid) return;
 
-                this.db.updatePlanet(planetId, data);
-            });
+            const coords = obj('currentPlanet');
+            const coordStr = coords ? `${coords.galaxy}:${coords.system}:${coords.position}` : '';
+
+            const data = {
+                type:    type === 1 ? 'moon' : 'planet',
+                coords:  coordStr,
+                metal:   num('metalOnPlanet'),
+                crystal: num('crystalOnPlanet'),
+                deut:    num('deuteriumOnPlanet'),
+                food:    num('foodOnPlanet'),
+            };
+            this.db.updatePlanet(pid, data);
         }
 
-        _extractVar(txt, varName) {
-            const m = txt.match(new RegExp(`var\\s+${varName}\\s*=\\s*([\\d.]+)`));
-            return m ? m[1] : null;
-        }
-
-        _extractNum(txt, varName) {
-            const m = txt.match(new RegExp(`var\\s+${varName}\\s*=\\s*([\\d.]+)`));
-            return m ? parseFloat(m[1]) : 0;
-        }
-
-        // Leggi risorse dalla pagina corrente (quando si naviga su un pianeta)
-        readCurrentPlanet() {
+        // Legge risorse dalla pagina corrente (disponibile sempre)
+        readCurrentPage() {
             if (!Meta.planetId) return;
             try {
                 const uw = unsafeWindow;
                 const data = {
-                    type:    Meta.planetType,
-                    coords:  Meta.planetCoords,
-                    metal:   uw.metalOnPlanet   || 0,
-                    crystal: uw.crystalOnPlanet || 0,
-                    deut:    uw.deuteriumOnPlanet || 0,
-                    food:    uw.foodOnPlanet    || 0,
+                    type:   Meta.planetType,
+                    coords: Meta.planetCoords,
+                    metal:  uw.metalOnPlanet   || 0,
+                    crystal:uw.crystalOnPlanet || 0,
+                    deut:   uw.deuteriumOnPlanet || 0,
+                    food:   uw.foodOnPlanet    || 0,
                 };
-                // prova a leggere dal resourcesBar
-                const rb = uw.resourcesBar?.resources;
-                if (rb) {
-                    data.metal   = rb.metal?.amount   || data.metal;
-                    data.crystal = rb.crystal?.amount || data.crystal;
-                    data.deut    = rb.deuterium?.amount || data.deut;
-                    data.prodMetal   = rb.metal?.production   || 0;
-                    data.prodCrystal = rb.crystal?.production || 0;
-                    data.prodDeut    = rb.deuterium?.production || 0;
+                // Se siamo su fleetdispatch, leggi la lista pianeti per aggiornare coords
+                const pl = uw.planets || uw.planetList;
+                if (pl) {
+                    pl.forEach(p => {
+                        const id = p.id || p.planetId;
+                        if (!id) return;
+                        const existing = this.db.data.myPlanets[id] || {};
+                        this.db.data.myPlanets[id] = {
+                            ...existing,
+                            coords: `${p.galaxy}:${p.system}:${p.position}`,
+                            type:   p.type === 3 ? 'moon' : 'planet',
+                        };
+                    });
                 }
                 this.db.updatePlanet(Meta.planetId, data);
                 this.db.save();
-            } catch (e) {}
+            } catch(e) {}
         }
 
-        // Fetch risorse del pianeta corrente via API
-        fetchCurrentResources() {
+        // Fetch risorse live dal resourcesbar
+        fetchResources() {
             try {
                 const uri = unsafeWindow.ajaxResourceboxURI;
                 if (!uri) return;
@@ -850,273 +782,326 @@
                     method: 'GET',
                     url: uri,
                     headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                    onload: (res) => {
+                    onload: (r) => {
                         try {
-                            const json = JSON.parse(res.responseText);
-                            const r = json.resources || json;
+                            const j = JSON.parse(r.responseText);
+                            const res = j.resources || j;
                             const data = {
                                 type:    Meta.planetType,
                                 coords:  Meta.planetCoords,
-                                metal:   r.metal?.amount   || r.metal   || 0,
-                                crystal: r.crystal?.amount || r.crystal || 0,
-                                deut:    r.deuterium?.amount || r.deut  || 0,
-                                food:    r.food?.amount    || r.food    || 0,
-                                prodMetal:   r.metal?.production   || 0,
-                                prodCrystal: r.crystal?.production || 0,
-                                prodDeut:    r.deuterium?.production || 0,
-                                metalStorage:   r.metal?.storage   || 0,
-                                crystalStorage: r.crystal?.storage || 0,
-                                deutStorage:    r.deuterium?.storage || 0,
+                                metal:        res.metal?.amount   || 0,
+                                crystal:      res.crystal?.amount || 0,
+                                deut:         res.deuterium?.amount || 0,
+                                food:         res.food?.amount    || 0,
+                                prodMetal:    res.metal?.production   || 0,
+                                prodCrystal:  res.crystal?.production || 0,
+                                prodDeut:     res.deuterium?.production || 0,
+                                metalStorage:   res.metal?.storage   || 0,
+                                crystalStorage: res.crystal?.storage || 0,
+                                deutStorage:    res.deuterium?.storage || 0,
                             };
                             this.db.updatePlanet(Meta.planetId, data);
                             this.db.save();
-                            window.ogl13?.planetList?._updateAll();
-                            window.ogl13?.planetList?._injectRecap();
-                        } catch (e) {}
+                            window.ogl13?.planetList?.refresh();
+                        } catch(e) {}
                     },
                 });
-            } catch (e) {}
+            } catch(e) {}
         }
     }
 
     // ─── MESSAGE MANAGER (SPY TABLE) ──────────────────────────────────────────
+    // Legge .rawMessageData dal DOM — compatibile v13 (confermato dai HAR)
+    // Inserisce la spy table in #messagecontainercomponent .content prima di .messageContent
     class MessageManager {
         constructor(db) {
             this.db = db;
-            this.reports = [];
-            this.sortKey = 'msu';
-            this.sortDir = -1;
+            this.messageDB = {};
+            this.sortKey = 'age';
+            this.sortDir = 'ASC';
+            this.spytable = null;
         }
 
         init() {
-            if (!this.db.getOption('showSpyTable', true)) return;
-            this._scanPage();
-            this._renderTable();
-        }
-
-        _scanPage() {
-            this.reports = [];
-            Util.qsa('.rawMessageData').forEach(el => {
-                const r = this._parseRawData(el);
-                if (r) this.reports.push(r);
-            });
-            // carica anche dal db
-            const saved = this.db.data?.messageDb || {};
-            Object.values(saved).forEach(r => {
-                if (!this.reports.find(x => x.hashcode === r.hashcode)) {
-                    this.reports.push(r);
-                }
-            });
-            // salva nuovi
-            this.reports.forEach(r => {
-                if (r.hashcode && r.type === 'spy') this.db.saveReport(r.hashcode, r);
-            });
-            this.db.save();
-        }
-
-        _parseRawData(el) {
-            const d = el.dataset;
-            const msgType = parseInt(d.rawMessagetype || d.rawMessageType || 0);
-            // type 10 = spy report
-            if (msgType !== 10 && msgType !== 0) return null;
-            // deve avere coordinate
-            const coords = d.rawCoordinates || d.rawCoords;
-            if (!coords) return null;
-
-            const metal   = parseInt(d.rawMetal   || 0);
-            const crystal = parseInt(d.rawCrystal || 0);
-            const deut    = parseInt(d.rawDeuterium || 0);
-            const food    = parseInt(d.rawFood    || 0);
-            const loot    = parseInt(d.rawLoot    || 75);
-            const fleetV  = parseInt(d.rawFleetvalue  || d.rawFleetValue  || 0);
-            const defV    = parseInt(d.rawDefensevalue || d.rawDefenseValue || 0);
-            const ts      = parseInt(d.rawTimestamp || 0);
-            const age     = parseInt(d.rawReportage || d.rawReportAge || 0) || (Util.serverNow() - ts);
-            const activity= parseInt(d.rawActivity || -1);
-            const hashcode = d.rawHashcode || d.rawHashCode || '';
-            const playerName = d.rawPlayername || d.rawPlayerName || '';
-            const targetPlayerId = parseInt(d.rawTargetplayerid || d.rawTargetPlayerId || 0);
-            const targetPlanetType = parseInt(d.rawTargetplanettype || d.rawTargetPlanetType || 1);
-
-            let fleet = {}, defense = {}, buildings = {}, research = {};
-            try { fleet    = JSON.parse(d.rawFleet    || '{}'); } catch(e) {}
-            try { defense  = JSON.parse(d.rawDefense  || '{}'); } catch(e) {}
-            try { buildings= JSON.parse(d.rawBuildings|| '{}'); } catch(e) {}
-            try { research = JSON.parse(d.rawResearch || '{}'); } catch(e) {}
-
-            const resources = metal + crystal + deut + food;
-            const lootable  = Math.floor(resources * loot / 100);
-            const msu = Util.msu(metal, crystal, deut);
-
-            // bottino per wave (semplificato a loot% / 2 per wave successiva)
-            const waves = [];
-            let rem = lootable;
-            for (let i = 0; i < 6; i++) {
-                const w = Math.floor(rem / 2);
-                waves.push(w);
-                rem -= w;
+            this._loadMessageDB();
+            if (!this.db.getOpt('showSpyTable')) return;
+            this._initSpyTable();
+            if (document.querySelector('.msg')) {
+                this._scanMessages();
+                this._loadSpyTable();
             }
-
-            // trova il msgId e il container del messaggio
-            const msgEl = el.closest('.msg');
-            const msgId = msgEl?.dataset?.msgId || '';
-
-            // link spia
-            const c = Util.parseCoords(coords);
-            const spyLink = c ? Util.fleetLink(c.g, c.s, c.p, targetPlanetType) : '';
-
-            return {
-                type: 'spy',
-                hashcode, msgId, coords, playerName,
-                targetPlayerId, targetPlanetType,
-                metal, crystal, deut, food,
-                resources, loot, lootable, msu,
-                fleetV, defV, activity,
-                fleet, defense, buildings, research,
-                ts, age, waves, spyLink,
-            };
         }
 
-        _renderTable() {
-            if (!this.reports.length) return;
-            const container = Util.qs('#messages, .messages-content, #messageDetailDiv, [id*="message"]');
-            if (!container) return;
-            Util.qs('.ogl13-spytable-wrap')?.remove();
+        _loadMessageDB() {
+            try {
+                const raw = GM_getValue(Meta.dbKey + '_messages', null);
+                this.messageDB = raw ? JSON.parse(raw) : {};
+            } catch(e) { this.messageDB = {}; }
+        }
 
-            const wrap = Util.el('div', 'ogl13-spytable-wrap');
-            const table = Util.el('table', 'ogl13-spytable');
-            table.innerHTML = `
-                <thead>
-                    <tr>
-                        <th data-key="age">Età</th>
-                        <th data-key="coords">Coordinate</th>
-                        <th data-key="playerName">Giocatore</th>
-                        <th data-key="loot">Bottino%</th>
-                        <th data-key="metal">Metallo</th>
-                        <th data-key="crystal">Cristallo</th>
-                        <th data-key="deut">Deuterio</th>
-                        <th data-key="msu">MSU</th>
-                        <th data-key="fleetV">Fleet</th>
-                        <th data-key="defV">Difese</th>
-                        <th data-key="activity">Attività</th>
-                        <th>Azione</th>
-                    </tr>
-                </thead>
-                <tbody></tbody>
+        _saveMessageDB() {
+            try { GM_setValue(Meta.dbKey + '_messages', JSON.stringify(this.messageDB)); } catch(e) {}
+        }
+
+        _initSpyTable() {
+            this.spytable = Util.el('div', 'ogl_spytable');
+
+            const header = Util.el('div', 'ogl_spyHeader');
+            // colonne: #, età, attività, tipo, coords, nome, loot/MSU, fleet, def, azioni
+            header.innerHTML = `
+                <b class="ogl_textCenter">#</b>
+                <b data-filter="age">Età</b>
+                <b class="ogl_textCenter" title="Attività">⏱</b>
+                <b class="ogl_textCenter"></b>
+                <b data-filter="rawCoords">Coords</b>
+                <b data-filter="playerName">Nome</b>
+                <b data-filter="wave1" class="ogl_textRight">Loot</b>
+                <b data-filter="fleetValue" class="ogl_textRight">Fleet</b>
+                <b data-filter="defValue" class="ogl_textRight">Def</b>
+                <b></b>
             `;
-
-            // sort
-            Util.qsa('th', table).forEach(th => {
-                const key = th.dataset.key;
-                if (!key) return;
-                if (key === this.sortKey) {
-                    th.classList.add(this.sortDir === -1 ? 'sort-desc' : 'sort-asc');
-                }
+            Util.qsa('[data-filter]', header).forEach(th => {
+                th.style.cursor = 'pointer';
                 th.addEventListener('click', () => {
-                    if (this.sortKey === key) this.sortDir *= -1;
-                    else { this.sortKey = key; this.sortDir = -1; }
-                    this._fillBody(table);
-                    Util.qsa('th', table).forEach(t => t.classList.remove('sort-asc','sort-desc'));
-                    th.classList.add(this.sortDir === -1 ? 'sort-desc' : 'sort-asc');
+                    if (this.sortKey === th.dataset.filter) {
+                        this.sortDir = this.sortDir === 'ASC' ? 'DESC' : 'ASC';
+                    } else {
+                        this.sortKey = th.dataset.filter;
+                        this.sortDir = th.dataset.filter === 'age' ? 'ASC' : 'DESC';
+                    }
+                    Util.qsa('[data-filter]', header).forEach(h => h.classList.remove('ogl_active'));
+                    th.classList.add('ogl_active');
+                    this._loadSpyTable();
                 });
             });
 
-            wrap.appendChild(table);
-            container.insertAdjacentElement('beforebegin', wrap);
-            this._fillBody(table);
+            // evidenzia colonna corrente
+            const activeHeader = header.querySelector(`[data-filter="${this.sortKey}"]`);
+            if (activeHeader) activeHeader.classList.add('ogl_active');
+
+            this.spytable.appendChild(header);
         }
 
-        _fillBody(table) {
-            const tbody = Util.qs('tbody', table);
-            tbody.innerHTML = '';
-            const sorted = [...this.reports].sort((a, b) => {
-                let va = a[this.sortKey] ?? 0;
-                let vb = b[this.sortKey] ?? 0;
-                if (typeof va === 'string') return this.sortDir * va.localeCompare(vb);
-                return this.sortDir * (vb - va);
+        _scanMessages() {
+            // Legge i .rawMessageData presenti nel DOM
+            // In v13 questi attributi sono confermati presenti (validato via HAR)
+            Util.qsa('.rawMessageData').forEach(el => {
+                const d = el.dataset;
+                const msgType = parseInt(d.rawMessagetype || d.rawMessageType || 0);
+                if (msgType !== 10 && msgType !== 0) return; // solo spy report
+                const coords = d.rawCoordinates || d.rawCoords;
+                if (!coords) return;
+
+                const msgEl  = el.closest('.msg');
+                const msgId  = msgEl?.dataset?.msgId || '';
+                const hash   = d.rawHashcode || d.rawHashCode || '';
+
+                const metal   = parseInt(d.rawMetal   || 0);
+                const crystal = parseInt(d.rawCrystal || 0);
+                const deut    = parseInt(d.rawDeuterium || 0);
+                const food    = parseInt(d.rawFood    || 0);
+                const loot    = parseInt(d.rawLoot    || 75);
+                const resources = parseInt(d.rawResources || 0) || (metal + crystal + deut + food);
+                const fleetValue  = d.rawHiddenships === '1' ? -1 : parseInt(d.rawFleetvalue  || d.rawFleetValue  || 0);
+                const defValue    = d.rawHiddendef   === '1' ? -1 : parseInt(d.rawDefensevalue || d.rawDefenseValue || 0);
+                const ts      = parseInt(d.rawTimestamp || 0);
+                const now     = Util.serverNow();
+                const age     = ts ? (now - ts) : parseInt(d.rawReportage || d.rawReportAge || 0);
+                const activity= parseInt(d.rawActivity || 60);
+                const isActive= parseInt(d.rawActive || 0);
+
+                const playerName = d.rawPlayername || d.rawPlayerName || '';
+                const targetType = parseInt(d.rawTargetplanettype || d.rawTargetPlanetType || 1);
+                const playerId   = parseInt(d.rawTargetplayerid || d.rawTargetPlayerId || 0);
+                const planetId   = parseInt(d.rawTargetplanetid || d.rawTargetPlanetId || 0);
+
+                const c = Util.parseCoords(coords);
+                const rawCoords = c ? Util.coordsToId(c.g, c.s, c.p) : coords;
+
+                // wave loot: loot% della quantità rimanente ad ogni wave
+                const lootPct = loot / 100;
+                const waves = [];
+                let rem = resources;
+                for (let i = 1; i <= 6; i++) {
+                    waves[i] = Math.floor(rem * lootPct);
+                    rem -= waves[i];
+                }
+                const msu = Util.msu(metal, crystal, deut) * lootPct;
+
+                const msg = {
+                    id: msgId, hash, coords, rawCoords, playerName,
+                    playerId, planetId, targetType,
+                    metal, crystal, deut, food, resources, loot,
+                    fleetValue, defValue, activity: isActive && activity < 15 ? activity : (activity === -1 ? 60 : activity),
+                    age, ts, wave1: waves[1], msu, waves,
+                    spyLink: c ? Util.fleetLink(c.g, c.s, c.p, targetType, 6) : '',
+                    raidLink: c ? Util.fleetLink(c.g, c.s, c.p, targetType, 1) : '',
+                };
+
+                if (playerId !== 99999) {
+                    this.messageDB[msgId || hash] = msg;
+                }
             });
 
-            sorted.forEach(r => {
-                const tr = Util.el('tr');
-                const ageClass = r.age < 3600 ? 'ogl13-age-fresh' : r.age < 86400 ? 'ogl13-age-mid' : 'ogl13-age-old';
-                const ageStr   = Util.formatTime(r.age);
-                const actStr   = r.activity === -1 ? '?' : r.activity === 0 ? 'attivo' : `${r.activity}m`;
-                const c = Util.parseCoords(r.coords);
-                const galaxyLink = c ? Util.galaxyLink(c.g, c.s) : '#';
+            // Salva anche nel DB principale per persistenza
+            Object.values(this.messageDB).forEach(m => {
+                if (m.hash) this.db.saveReport(m.hash, m);
+            });
+            this._saveMessageDB();
+        }
 
-                tr.innerHTML = `
-                    <td class="${ageClass}">${ageStr}</td>
-                    <td><a class="ogl13-coords-link" href="${galaxyLink}">${r.coords}</a></td>
-                    <td>${r.playerName}</td>
-                    <td class="ogl13-loot">${r.loot}%</td>
-                    <td class="ogl13-m">${Util.formatNum(r.metal)}</td>
-                    <td class="ogl13-c">${Util.formatNum(r.crystal)}</td>
-                    <td class="ogl13-d">${Util.formatNum(r.deut)}</td>
-                    <td class="ogl13-msu">${Util.formatNum(r.msu)}</td>
-                    <td class="ogl13-fleet-v">${r.fleetV ? Util.formatNum(r.fleetV) : '-'}</td>
-                    <td class="ogl13-def-v">${r.defV ? Util.formatNum(r.defV) : '-'}</td>
-                    <td>${actStr}</td>
-                    <td>
-                        ${r.spyLink ? `<a class="ogl13-spy-btn" href="${r.spyLink}">Spia</a>` : ''}
-                        ${r.spyLink ? `<a class="ogl13-spy-btn" href="${r.spyLink.replace('mission=6','mission=1')}">Raid</a>` : ''}
-                    </td>
+        _loadSpyTable() {
+            if (!this.spytable) return;
+
+            // Rimuovi wrapper esistente
+            this.spytable.querySelector('.ogl_lineWrapper')?.remove();
+
+            const wrapper = Util.el('div', 'ogl_lineWrapper');
+            const list = Object.values(this.messageDB);
+
+            // Ordinamento
+            const key = this.sortKey;
+            const dir = this.sortDir === 'DESC' ? -1 : 1;
+            list.sort((a, b) => {
+                const va = a[key] ?? 0, vb = b[key] ?? 0;
+                if (typeof va === 'string') return dir * va.localeCompare(vb);
+                return dir * (va - vb);
+            });
+
+            let idx = 0;
+            let totalLoot = 0;
+            list.forEach(msg => {
+                idx++;
+                totalLoot += msg.wave1 || 0;
+
+                let ageStr;
+                const ageSec = msg.age;
+                if (ageSec > 86400) ageStr = Math.floor(ageSec / 86400) + 'd';
+                else if (ageSec > 3600) ageStr = Math.floor(ageSec / 3600) + 'h';
+                else ageStr = Math.floor(ageSec / 60) + 'm';
+
+                const actStr  = msg.activity < 15 ? '*' : msg.activity >= 60 ? '-' : String(msg.activity);
+                const ageClass= msg.age < 3600 ? '' : msg.age < 86400 ? ' ogl_warning' : ' ogl_danger';
+
+                const line = Util.el('div', 'ogl_spyLine');
+                line.dataset.id = msg.id;
+
+                const coordParts = msg.coords.split(':');
+                const galaxyLink = Util.galaxyLink(coordParts[0], coordParts[1]);
+
+                line.innerHTML = `
+                    <span class="ogl_textCenter" style="color:#666">${idx}</span>
+                    <span class="${ageClass}">${ageStr}</span>
+                    <span class="ogl_textCenter${msg.activity < 15 ? ' ogl_danger' : msg.activity < 60 ? ' ogl_warning' : ''}">${actStr}</span>
+                    <span class="ogl_textCenter">${msg.targetType === 3 ? '🌙' : '🌍'}</span>
+                    <span><a href="${galaxyLink}" style="color:#88aaff;text-decoration:none">${msg.coords}</a></span>
+                    <div class="ogl_spyTableName"><a href="/game/index.php?page=componentOnly&component=messagedetails&messageId=${msg.id}">${msg.playerName}</a></div>
+                    <a class="ogl_loot ogl_textRight" href="${msg.raidLink}">${Util.formatNum(msg.wave1)}</a>
+                    <span class="ogl_textRight" style="${msg.fleetValue > 0 ? 'background:linear-gradient(192deg,#622a2a,#3c1717 70%)' : ''}">${msg.fleetValue < 0 ? '?' : Util.formatNum(msg.fleetValue)}</span>
+                    <span class="ogl_textRight" style="${msg.defValue > 0 ? 'background:linear-gradient(192deg,#622a2a,#3c1717 70%)' : ''}">${msg.defValue < 0 ? '?' : Util.formatNum(msg.defValue)}</span>
+                    <span class="ogl_actions"></span>
                 `;
 
-                // tooltip con dettagli risorse wave
-                const msuTd = tr.querySelectorAll('td')[7];
-                msuTd.title = `Wave loot:\n${r.waves.map((w,i) => `W${i+1}: ${Util.formatNum(w)}`).join('\n')}`;
+                // bottoni azione
+                const actions = line.querySelector('.ogl_actions');
+                if (msg.spyLink) {
+                    const spyBtn = Util.el('a', 'ogl_button', '👁');
+                    spyBtn.href  = msg.spyLink;
+                    spyBtn.title = 'Spia';
+                    actions.appendChild(spyBtn);
 
-                tbody.appendChild(tr);
+                    const atkBtn = Util.el('a', 'ogl_button', '⚔');
+                    atkBtn.href  = msg.raidLink;
+                    atkBtn.title = 'Attacca';
+                    actions.appendChild(atkBtn);
+                }
+
+                // sottorighe wave loot (toggle)
+                const more = Util.el('div', 'ogl_more ogl_hidden');
+                msg.waves.slice(1).forEach((w, i) => {
+                    if (!w) return;
+                    const sub = Util.el('div');
+                    sub.innerHTML = `<span>W${i+1}:</span><span>${Util.formatNum(w)}</span>`;
+                    more.appendChild(sub);
+                });
+                if (more.children.length) {
+                    const moreBtn = Util.el('span', 'ogl_button');
+                    moreBtn.textContent = '…';
+                    moreBtn.title = 'Wave detail';
+                    moreBtn.addEventListener('click', () => more.classList.toggle('ogl_hidden'));
+                    actions.appendChild(moreBtn);
+                    wrapper.appendChild(line);
+                    wrapper.appendChild(more);
+                } else {
+                    wrapper.appendChild(line);
+                }
             });
+
+            // riga totale
+            const sumLine = Util.el('div', 'ogl_spyLine ogl_spySum');
+            sumLine.innerHTML = `
+                <span></span><span></span><span></span><span></span><span></span>
+                <span style="color:#aaa">Totale</span>
+                <span class="ogl_textRight">${Util.formatNum(totalLoot)}</span>
+                <span></span><span></span><span></span>
+            `;
+            wrapper.appendChild(sumLine);
+
+            this.spytable.appendChild(wrapper);
+
+            // Inserimento nel punto corretto: #messagecontainercomponent .content → prima di .messageContent
+            const msgContent = Util.qs('#messagecontainercomponent .content');
+            const msgList    = Util.qs('#messagecontainercomponent .content .messageContent');
+            if (msgContent && msgList) {
+                msgContent.insertBefore(this.spytable, msgList);
+            } else if (msgContent) {
+                msgContent.prepend(this.spytable);
+            }
         }
 
-        // Chiamato da AJAX hook dopo getMessagesList
-        onMessagesLoaded() {
-            this._scanPage();
-            this._renderTable();
+        // Chiamato dall'AJAX hook dopo getMessagesList
+        onMessagesReloaded() {
+            this._scanMessages();
+            this._loadSpyTable();
         }
     }
 
     // ─── MOVEMENT MANAGER ─────────────────────────────────────────────────────
     class MovementManager {
-        constructor(db) {
-            this.db = db;
-            this.events = [];
-        }
+        constructor(db) { this.db = db; }
 
-        init() {
-            this._fetchEvents();
-        }
+        init() { this._fetchEvents(); }
 
         _fetchEvents() {
             try {
                 const uri = unsafeWindow.ajaxEventboxURI;
                 if (!uri) return;
-                // prima fetch veloce per avere il token aggiornato
                 GM_xmlhttpRequest({
                     method: 'GET',
                     url: uri,
                     headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                    onload: (res) => {
+                    onload: (r) => {
                         try {
-                            const j = JSON.parse(res.responseText);
-                            if (j.newAjaxToken) {
-                                try { unsafeWindow.token = j.newAjaxToken; } catch(e) {}
-                            }
+                            const j = JSON.parse(r.responseText);
+                            if (j.newAjaxToken) try { unsafeWindow.token = j.newAjaxToken; } catch(e) {}
+                            this._fetchEventList();
                         } catch(e) {}
                     },
                 });
+            } catch(e) {}
+        }
 
-                // fetch lista eventi completa
-                const catchUri = unsafeWindow.ajaxEventboxURI?.replace('fetchEventBox', 'catchEvents').replace('asJson=1', 'ajax=1');
-                if (!catchUri) return;
+        _fetchEventList() {
+            try {
+                const base = unsafeWindow.ajaxEventboxURI || '';
+                const uri  = base.replace('fetchEventBox', 'catchEvents').replace('asJson=1', 'ajax=1');
+                if (!uri || uri === base) return;
                 GM_xmlhttpRequest({
-                    method: 'GET',
-                    url: catchUri,
+                    method: 'GET', url: uri,
                     headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                    onload: (res) => {
+                    onload: (r) => {
                         try {
-                            const j = JSON.parse(res.responseText);
+                            const j = JSON.parse(r.responseText);
                             const html = j.content?.eventlist || '';
                             if (html) this._parseEventList(html);
                         } catch(e) {}
@@ -1126,87 +1111,68 @@
         }
 
         _parseEventList(html) {
-            const doc = new DOMParser().parseFromString(html, 'text/html');
-            this.events = [];
+            const doc    = new DOMParser().parseFromString(html, 'text/html');
+            const events = [];
+            const myPlanets = this.db.data?.myPlanets || {};
+
+            const findPlanetId = (coords, isMoon) => {
+                if (!coords) return null;
+                const cs = `${coords.g}:${coords.s}:${coords.p}`;
+                const t  = isMoon ? 'moon' : 'planet';
+                const found = Object.entries(myPlanets).find(([,p]) => p.coords === cs && p.type === t);
+                return found ? parseInt(found[0]) : null;
+            };
+
             Util.qsa('tr.eventFleet', doc).forEach(tr => {
-                const mission    = parseInt(tr.dataset.missionType || 0);
-                const arrivalTime= parseInt(tr.dataset.arrivalTime || 0);
-                const returning  = tr.dataset.returnFlight === 'true';
+                const mission     = parseInt(tr.dataset.missionType || 0);
+                const arrivalTime = parseInt(tr.dataset.arrivalTime || 0);
+                const returning   = tr.dataset.returnFlight === 'true';
 
-                const originText = Util.qs('.coordsOrigin a', tr)?.textContent?.trim() || '';
-                const destText   = Util.qs('.destCoords a', tr)?.textContent?.trim() || '';
-                const originMoon = !!Util.qs('.originFleet figure.moon, .originFleet .moon', tr);
-                const destMoon   = !!Util.qs('.destFleet figure.moon, .destFleet .moon', tr);
+                const originStr = Util.qs('.coordsOrigin a', tr)?.textContent?.trim() || '';
+                const destStr   = Util.qs('.destCoords a',   tr)?.textContent?.trim() || '';
+                const originMoon= !!Util.qs('.originFleet figure.moon, .originFleet .moon', tr);
+                const destMoon  = !!Util.qs('.destFleet figure.moon, .destFleet .moon',   tr);
 
-                const originCoords = Util.parseCoords(originText);
-                const destCoords   = Util.parseCoords(destText);
+                const originC = Util.parseCoords(originStr);
+                const destC   = Util.parseCoords(destStr);
 
-                // cerca corrispondenza nei miei pianeti per avere l'ID
-                const myPlanets = this.db.data?.myPlanets || {};
-                const findPlanetId = (coords, isMoon) => {
-                    if (!coords) return null;
-                    const coordStr = `${coords.g}:${coords.s}:${coords.p}`;
-                    const match = Object.entries(myPlanets).find(([id, p]) => {
-                        return p.coords === coordStr && (isMoon ? p.type === 'moon' : p.type === 'planet');
-                    });
-                    return match ? parseInt(match[0]) : null;
-                };
-
-                const ev = {
+                events.push({
                     mission, arrivalTime, returning,
-                    originCoords, destCoords,
-                    originMoon, destMoon,
-                    originId: findPlanetId(originCoords, originMoon),
-                    destId:   findPlanetId(destCoords,   destMoon),
-                };
-                this.events.push(ev);
+                    originC, destC, originMoon, destMoon,
+                    originId: findPlanetId(originC, originMoon),
+                    destId:   findPlanetId(destC,   destMoon),
+                });
             });
 
-            window.ogl13?.planetList?.setFleetEvents(this.events);
-            this._checkNotifications();
+            window.ogl13?.planetList?.setFleetEvents(events);
+            this._checkAttackNotifications(events);
         }
 
-        _checkNotifications() {
-            if (!this.db.getOption('browserNotif', false)) return;
+        _checkAttackNotifications(events) {
+            if (!this.db.getOpt('browserNotif', false)) return;
             const now = Util.serverNow();
-            this.events.forEach(ev => {
+            events.forEach(ev => {
                 if (ev.mission === 1 && !ev.returning && ev.destId) {
                     const secs = ev.arrivalTime - now;
-                    if (secs > 0 && secs < 300) {
+                    if (secs > 30 && secs < 300) {
                         setTimeout(() => {
-                            GM_notification({
-                                title: 'OGLight v13 — Attacco in arrivo!',
-                                text: `Attacco in ${Util.formatTime(secs)} su ${ev.destCoords?.g}:${ev.destCoords?.s}:${ev.destCoords?.p}`,
-                            });
+                            GM_notification({ title:'OGLight v13 — Attacco!', text:`Arrivo tra ${Util.formatTime(secs)}` });
                         }, Math.max(0, (secs - 30) * 1000));
                     }
                 }
             });
         }
 
-        // Chiamato da AJAX hook dopo catchEvents
-        onEventsLoaded(html) {
-            this._parseEventList(html);
-        }
+        onEventsLoaded(html) { this._parseEventList(html); }
     }
 
     // ─── GALAXY MANAGER ───────────────────────────────────────────────────────
     class GalaxyManager {
-        constructor(db) {
-            this.db = db;
-        }
+        constructor(db) { this.db = db; }
 
-        init() {
-            if (!Meta.isGalaxy) return;
-            this._observeGalaxy();
-        }
+        init() {} // il parsing avviene via AJAX hook
 
-        _observeGalaxy() {
-            // Hook su risposta fetchSolarSystemData via AJAX
-            // (gestito in setupAjaxHooks)
-        }
-
-        parseGalaxyData(data) {
+        parseData(data) {
             if (!data?.system) return;
             const sys = data.system;
             const now = Util.serverNow();
@@ -1214,332 +1180,230 @@
             (sys.galaxyContent || []).forEach(slot => {
                 if (!slot.planets?.length) return;
                 const { galaxy, system, position } = slot;
-                const coordKey = `${galaxy}:${system}:${position}`;
-                const coordId  = Util.coordsToId(galaxy, system, position);
+                const ck = `${galaxy}:${system}:${position}`;
 
-                slot.planets.forEach(planet => {
-                    const pid = planet.planetId;
-                    const isMoon = planet.planetType === 3;
-
-                    // aggiorna pdb
-                    if (!this.db.data.pdb[coordKey]) this.db.data.pdb[coordKey] = {};
-                    const pentry = this.db.data.pdb[coordKey];
-                    if (isMoon) {
-                        pentry.mid = pid;
-                    } else {
-                        pentry.pid  = pid;
-                        pentry.uid  = planet.playerId;
-                        pentry.coo  = coordKey;
-                    }
-                    pentry.api = now;
-
-                    // attività
-                    if (planet.activity) {
-                        const acti = planet.activity.showMinutes ? planet.activity.showActivity : -1;
-                        if (!pentry.acti) pentry.acti = [null, null, 0];
-                        if (isMoon) pentry.acti[1] = acti;
-                        else        pentry.acti[0] = acti;
-                        pentry.acti[2] = now;
+                slot.planets.forEach(p => {
+                    const isMoon = p.planetType === 3;
+                    if (!this.db.data.pdb[ck]) this.db.data.pdb[ck] = {};
+                    const entry = this.db.data.pdb[ck];
+                    if (isMoon) entry.mid = p.planetId;
+                    else { entry.pid = p.planetId; entry.uid = p.playerId; entry.coo = ck; }
+                    entry.api = now;
+                    if (p.activity) {
+                        const acti = p.activity.showMinutes ? p.activity.showActivity : -1;
+                        if (!entry.acti) entry.acti = [null, null, 0];
+                        if (isMoon) entry.acti[1] = acti; else entry.acti[0] = acti;
+                        entry.acti[2] = now;
                     }
                 });
 
-                // aggiorna udb
-                if (slot.player?.playerId && slot.player.playerId !== 99999) {
-                    const uid = slot.player.playerId;
+                const pl = slot.player;
+                if (pl?.playerId && pl.playerId !== 99999) {
+                    const uid = pl.playerId;
                     if (!this.db.data.udb[uid]) this.db.data.udb[uid] = { uid, planets: [] };
                     const u = this.db.data.udb[uid];
-                    u.name = slot.player.playerName;
-                    u.liveUpdate = now;
-                    if (slot.player.isInactive) u.status = 'i';
-                    else if (slot.player.isLongInactive) u.status = 'I';
-                    else if (slot.player.isOnVacation) u.status = 'v';
-                    else if (slot.player.isBanned) u.status = 'b';
-                    else u.status = 'n';
-                    if (!u.planets.includes(coordKey)) u.planets.push(coordKey);
-                    if (slot.player.highscorePositionPlayer) {
-                        if (!u.score) u.score = {};
-                        u.score.globalRanking = slot.player.highscorePositionPlayer;
-                    }
+                    u.name = pl.playerName; u.liveUpdate = now;
+                    u.status = pl.isInactive ? 'i' : pl.isLongInactive ? 'I' : pl.isOnVacation ? 'v' : pl.isBanned ? 'b' : 'n';
+                    if (!u.planets.includes(ck)) u.planets.push(ck);
+                    if (pl.highscorePositionPlayer) { if (!u.score) u.score = {}; u.score.globalRanking = pl.highscorePositionPlayer; }
                 }
             });
 
             this.db.save();
-            this._enhanceGalaxyUI(data);
+            if (Meta.isGalaxy) this._enhanceUI(data);
         }
 
-        _enhanceGalaxyUI(data) {
-            if (!Meta.isGalaxy) return;
-            const sys = data.system;
-            const tableRows = Util.qsa('#galaxyTableBody tr, .galaxyRow, [data-position]');
-
-            (sys.galaxyContent || []).forEach((slot, idx) => {
-                const tr = tableRows[idx];
+        _enhanceUI(data) {
+            if (!this.db.getOpt('showGalaxyEnhancements')) return;
+            const rows = Util.qsa('#galaxyTableBody tr, .galaxyRow');
+            (data.system?.galaxyContent || []).forEach((slot, i) => {
+                const tr = rows[i];
                 if (!tr) return;
-
-                // tag colorato
-                if (this.db.getOption('showGalaxyTags', true)) {
-                    this._addTag(tr, slot);
-                }
-
-                // pin giocatore
+                const { galaxy, system, position } = slot;
+                this._addTag(tr, galaxy, system, position);
                 if (slot.player?.playerId && slot.player.playerId !== 99999) {
                     this._addPin(tr, slot.player);
-                }
-
-                // link ranking
-                if (slot.player?.highscorePositionPlayer) {
-                    const nameCell = Util.qs('.cellPlayerName, .playername', tr);
-                    if (nameCell && !Util.qs('.ogl13-ranking', nameCell)) {
-                        const rank = Util.el('span');
-                        rank.className = 'ogl13-ranking';
-                        rank.style.cssText = 'font-size:9px;color:#666;margin-left:4px;';
-                        rank.textContent = `#${slot.player.highscorePositionPlayer}`;
-                        nameCell.appendChild(rank);
-                    }
+                    this._addRanking(tr, slot.player);
                 }
             });
         }
 
-        _addTag(tr, slot) {
-            const { galaxy, system, position } = slot;
-            const id = Util.coordsToId(galaxy, system, position);
-            const tagData = this.db.data.tdb[id];
-            const tagColor = tagData?.tag || 'none';
-
-            const existingTag = Util.qs('.ogl13-galaxy-tag', tr);
-            if (existingTag) existingTag.remove();
-
+        _addTag(tr, g, s, p) {
+            const id = Util.coordsToId(g, s, p);
+            const tag = this.db.data.tdb[id];
+            Util.qs('.ogl_tagBtn', tr)?.remove();
             const coordCell = Util.qs('.cellPosition, [data-position], .coords', tr);
             if (!coordCell) return;
-
-            const tag = Util.el('span', `ogl13-galaxy-tag ogl13-tag-${tagColor}`);
-            tag.title = 'Tag posizione';
-            tag.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this._showTagPicker(e, id, tag);
-            });
-            coordCell.appendChild(tag);
+            const btn = Util.el('span', `ogl_tagBtn ogl_tag_${tag?.tag || 'none'}`);
+            btn.title = 'Tag';
+            btn.addEventListener('click', e => { e.stopPropagation(); this._showTagPicker(e, id, btn); });
+            coordCell.appendChild(btn);
         }
 
         _addPin(tr, player) {
-            const uid = player.playerId;
-            const pinData = this.db.data.udb[uid];
-            const isPinned = pinData?.pin && pinData.pin !== 'none';
-
-            const existingPin = Util.qs('.ogl13-galaxy-pin', tr);
-            if (existingPin) existingPin.remove();
-
+            const uid   = player.playerId;
+            const pinType = this.db.data.udb[uid]?.pin;
+            Util.qs('.ogl_pinBtn', tr)?.remove();
             const nameCell = Util.qs('.cellPlayerName, .playername', tr);
             if (!nameCell) return;
-
-            const pin = Util.el('span', `ogl13-galaxy-pin${isPinned ? ' pinned' : ''}`);
-            pin.textContent = '📌';
-            pin.title = isPinned ? `Pinned: ${pinData.pin}` : 'Aggiungi pin';
-            pin.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this._showPinPicker(e, uid, pin);
-            });
-            nameCell.appendChild(pin);
+            const btn = Util.el('span', `ogl_pinBtn${pinType && pinType !== 'none' ? ' ogl_pinned' : ''}`);
+            btn.textContent = '📌';
+            btn.title = pinType ? `Pinned: ${pinType}` : 'Pin';
+            btn.addEventListener('click', e => { e.stopPropagation(); this._showPinPicker(e, uid, btn); });
+            nameCell.appendChild(btn);
         }
 
-        _showTagPicker(e, coordId, tagEl) {
-            Util.qs('.ogl13-tag-picker')?.remove();
-            const picker = Util.el('div', 'ogl13-tag-picker');
+        _addRanking(tr, player) {
+            if (!player.highscorePositionPlayer) return;
+            Util.qs('.ogl_ranking', tr)?.remove();
+            const nameCell = Util.qs('.cellPlayerName, .playername', tr);
+            if (!nameCell) return;
+            const span = Util.el('span', 'ogl_ranking', `#${player.highscorePositionPlayer}`);
+            nameCell.appendChild(span);
+        }
+
+        _showTagPicker(e, id, tagEl) {
+            Util.qs('.ogl_tagPicker')?.remove();
+            Util.qs('.ogl_pinPicker')?.remove();
+            const picker = Util.el('div', 'ogl_tagPicker');
             TAG_COLORS.forEach(color => {
-                const swatch = Util.el('span', `ogl13-tag-${color}`);
-                swatch.title = color;
-                swatch.addEventListener('click', () => {
-                    if (color === 'none') {
-                        delete this.db.data.tdb[coordId];
-                    } else {
-                        this.db.data.tdb[coordId] = { tag: color };
-                    }
-                    tagEl.className = `ogl13-galaxy-tag ogl13-tag-${color}`;
+                const sw = Util.el('span', `ogl_tag_${color}`);
+                sw.title = color;
+                sw.addEventListener('click', () => {
+                    if (color === 'none') delete this.db.data.tdb[id];
+                    else this.db.data.tdb[id] = { tag: color };
+                    tagEl.className = `ogl_tagBtn ogl_tag_${color}`;
                     this.db.save();
                     picker.remove();
                 });
-                picker.appendChild(swatch);
+                picker.appendChild(sw);
             });
-            picker.style.left = e.pageX + 'px';
-            picker.style.top  = e.pageY + 'px';
+            picker.style.left = e.clientX + 'px';
+            picker.style.top  = e.clientY + 'px';
             document.body.appendChild(picker);
-            setTimeout(() => document.addEventListener('click', () => picker.remove(), { once: true }), 50);
+            setTimeout(() => document.addEventListener('click', () => picker.remove(), { once:true }), 50);
         }
 
         _showPinPicker(e, uid, pinEl) {
-            Util.qs('.ogl13-tag-picker')?.remove();
-            const picker = Util.el('div', 'ogl13-tag-picker');
-            picker.style.width = '130px';
+            Util.qs('.ogl_tagPicker')?.remove();
+            Util.qs('.ogl_pinPicker')?.remove();
+            const picker = Util.el('div', 'ogl_pinPicker');
             PIN_TYPES.forEach(type => {
                 const btn = Util.el('span');
-                btn.style.cssText = 'width:auto;padding:2px 4px;font-size:10px;border:1px solid #333;background:#111;color:#ccc;cursor:pointer;border-radius:2px;';
                 btn.textContent = type;
                 btn.addEventListener('click', () => {
                     if (!this.db.data.udb[uid]) this.db.data.udb[uid] = { uid };
                     if (type === 'none') delete this.db.data.udb[uid].pin;
                     else this.db.data.udb[uid].pin = type;
-                    pinEl.className = `ogl13-galaxy-pin${type !== 'none' ? ' pinned' : ''}`;
-                    pinEl.title = type !== 'none' ? `Pinned: ${type}` : 'Aggiungi pin';
+                    pinEl.className = `ogl_pinBtn${type !== 'none' ? ' ogl_pinned' : ''}`;
+                    pinEl.title = type !== 'none' ? `Pinned: ${type}` : 'Pin';
                     this.db.save();
                     picker.remove();
-                    window.ogl13?.ui?.refreshPinnedList();
+                    window.ogl13?.ui?.refreshIfOpen('pinned');
                 });
                 picker.appendChild(btn);
             });
-            picker.style.left = e.pageX + 'px';
-            picker.style.top  = e.pageY + 'px';
+            picker.style.left = e.clientX + 'px';
+            picker.style.top  = e.clientY + 'px';
             document.body.appendChild(picker);
-            setTimeout(() => document.addEventListener('click', () => picker.remove(), { once: true }), 50);
+            setTimeout(() => document.addEventListener('click', () => picker.remove(), { once:true }), 50);
         }
     }
 
     // ─── FLEET MANAGER ────────────────────────────────────────────────────────
     class FleetManager {
-        constructor(db) {
-            this.db = db;
-        }
+        constructor(db) { this.db = db; }
 
         init() {
             if (!Meta.isFleet) return;
-            // aspetta che fleetDispatcher sia inizializzato
-            const check = setInterval(() => {
+            const poll = setInterval(() => {
                 try {
-                    if (unsafeWindow.fleetDispatcher) {
-                        clearInterval(check);
-                        this._enhance();
-                    }
-                } catch(e) { clearInterval(check); }
+                    if (unsafeWindow.fleetDispatcher) { clearInterval(poll); this._enhance(); }
+                } catch(e) { clearInterval(poll); }
             }, 100);
-            setTimeout(() => clearInterval(check), 5000);
+            setTimeout(() => clearInterval(poll), 5000);
         }
 
         _enhance() {
             this._addCapacityBar();
-            this._readCurrentShips();
-            this._addFleetLimiter();
         }
 
         _addCapacityBar() {
             const fleet1 = Util.qs('#fleet1');
-            if (!fleet1) return;
-            if (Util.qs('.ogl13-capacity-bar', fleet1)) return;
-
-            const bar = Util.el('div', 'ogl13-capacity-bar');
-            const fill = Util.el('div', 'ogl13-capacity-fill');
+            if (!fleet1 || Util.qs('.ogl_capacityBar', fleet1)) return;
+            const bar  = Util.el('div', 'ogl_capacityBar');
+            const fill = Util.el('div', 'ogl_capacityFill');
             fill.style.width = '0%';
             bar.appendChild(fill);
+            const info = Util.el('div', 'ogl_capacityInfo');
+            info.innerHTML = '<span>Capacità</span><span class="ogl_capVal">-</span>';
+            fleet1.append(bar, info);
 
-            const info = Util.el('div', 'ogl13-capacity-info');
-            info.innerHTML = '<span>Capacità</span><span class="ogl13-cap-val">-</span>';
-            fleet1.insertAdjacentElement('beforeend', bar);
-            fleet1.insertAdjacentElement('beforeend', info);
-
-            // aggiorna ogni 500ms
-            setInterval(() => this._updateCapacityBar(fill, info), 500);
-        }
-
-        _updateCapacityBar(fill, info) {
-            try {
-                const fd = unsafeWindow.fleetDispatcher;
-                if (!fd) return;
-                const cap   = fd.getCargoCapacity ? fd.getCargoCapacity() : 0;
-                const metal = fd.metalToSend   || 0;
-                const cryst = fd.crystalToSend || 0;
-                const deut  = fd.deuteriumToSend || 0;
-                const food  = fd.foodToSend    || 0;
-                const load  = metal + cryst + deut + food;
-                if (cap <= 0) return;
-                const pct = Math.min(100, (load / cap) * 100);
-                fill.style.width = pct + '%';
-                fill.className   = `ogl13-capacity-fill${pct >= 100 ? ' over' : ''}`;
-                const capVal = Util.qs('.ogl13-cap-val', info);
-                if (capVal) capVal.textContent = `${Util.formatNum(load)} / ${Util.formatNum(cap)} (${Math.round(pct)}%)`;
-            } catch(e) {}
-        }
-
-        _readCurrentShips() {
-            try {
-                const fd = unsafeWindow.fleetDispatcher;
-                const pl = unsafeWindow.planetList || unsafeWindow.planets;
-                if (fd && pl) {
-                    // salva lista pianeti nel DB per il MovementManager
-                    const myPlanets = this.db.data.myPlanets;
-                    pl.forEach(p => {
-                        const pid = p.id || p.planetId;
-                        if (!pid) return;
-                        if (!myPlanets[pid]) myPlanets[pid] = {};
-                        myPlanets[pid].coords = `${p.galaxy}:${p.system}:${p.position}`;
-                        myPlanets[pid].type   = p.type === 3 ? 'moon' : 'planet';
-                    });
-                    this.db.save();
-                }
-            } catch(e) {}
-        }
-
-        _addFleetLimiter() {
-            if (!this.db.getOption('fleetLimiter', false)) return;
-            const fleet1 = Util.qs('#fleet1');
-            if (!fleet1) return;
-
-            const limiter = this.db.data.fleetLimiter;
-            const div = Util.el('div');
-            div.style.cssText = 'padding:4px;font-size:10px;color:#888;border-top:1px solid #2a3a4a;margin-top:4px;';
-            div.innerHTML = '<span>Fleet Limiter attivo</span>';
-            fleet1.appendChild(div);
+            setInterval(() => {
+                try {
+                    const fd  = unsafeWindow.fleetDispatcher;
+                    if (!fd) return;
+                    const cap  = fd.getCargoCapacity?.() || 0;
+                    const load = (fd.metalToSend || 0) + (fd.crystalToSend || 0) + (fd.deuteriumToSend || 0) + (fd.foodToSend || 0);
+                    if (!cap) return;
+                    const pct = Math.min(100, (load / cap) * 100);
+                    fill.style.width = pct + '%';
+                    fill.className   = `ogl_capacityFill${pct >= 100 ? ' ogl_over' : ''}`;
+                    Util.qs('.ogl_capVal', info).textContent = `${Util.formatNum(load)} / ${Util.formatNum(cap)} (${Math.round(pct)}%)`;
+                } catch(e) {}
+            }, 500);
         }
     }
 
     // ─── UI MANAGER ───────────────────────────────────────────────────────────
     class UIManager {
-        constructor(db) {
-            this.db = db;
-            this.panel = null;
-            this.currentTab = null;
-        }
+        constructor(db) { this.db = db; this.panel = null; this.currentTab = null; }
 
         init() {
-            this._createSidePanel();
-            document.addEventListener('keydown', (e) => this._handleKey(e));
+            this._createPanel();
         }
 
-        _createSidePanel() {
-            const panel = Util.el('div', 'ogl13-side');
+        _createPanel() {
+            const panel = Util.el('div', 'ogl_side');
             panel.innerHTML = `
-                <div class="ogl13-side-header">
-                    <span id="ogl13-panel-title">OGLight v13</span>
-                    <span class="ogl13-side-close" id="ogl13-panel-close">✕</span>
+                <div class="ogl_sideHeader">
+                    <span>OGLight v13</span>
+                    <span class="ogl_sideClose">✕</span>
                 </div>
-                <div class="ogl13-side-tabs">
-                    <div class="ogl13-tab" data-tab="account">Account</div>
-                    <div class="ogl13-tab" data-tab="pinned">Pin</div>
-                    <div class="ogl13-tab" data-tab="tagged">Tag</div>
-                    <div class="ogl13-tab" data-tab="stats">Stats</div>
-                    <div class="ogl13-tab" data-tab="settings">⚙</div>
+                <div class="ogl_sideTabs">
+                    <div class="ogl_sideTab" data-tab="account">Account</div>
+                    <div class="ogl_sideTab" data-tab="pinned">Pin</div>
+                    <div class="ogl_sideTab" data-tab="tagged">Tag</div>
+                    <div class="ogl_sideTab" data-tab="stats">Stats</div>
+                    <div class="ogl_sideTab" data-tab="settings">⚙</div>
                 </div>
-                <div class="ogl13-side-content" id="ogl13-side-content"></div>
+                <div class="ogl_sideContent" id="ogl13SideContent"></div>
             `;
             document.body.appendChild(panel);
             this.panel = panel;
 
-            Util.qs('#ogl13-panel-close', panel).addEventListener('click', () => this.close());
-            Util.qsa('.ogl13-tab', panel).forEach(tab => {
+            Util.qs('.ogl_sideClose', panel).addEventListener('click', () => this.close());
+            Util.qsa('.ogl_sideTab', panel).forEach(tab => {
                 tab.addEventListener('click', () => this.openTab(tab.dataset.tab));
+            });
+
+            // Tasto ` o ² per toggle settings
+            document.addEventListener('keydown', e => {
+                if (['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
+                if (e.key === '`' || e.key === '²') {
+                    panel.classList.contains('ogl_open') ? this.close() : this.openTab('settings');
+                }
             });
         }
 
-        openTab(tabName) {
+        openTab(name) {
             if (!this.panel) return;
-            this.panel.classList.add('open');
-            this.currentTab = tabName;
-
-            Util.qsa('.ogl13-tab', this.panel).forEach(t => {
-                t.classList.toggle('active', t.dataset.tab === tabName);
-            });
-
-            const content = Util.qs('#ogl13-side-content', this.panel);
+            this.panel.classList.add('ogl_open');
+            this.currentTab = name;
+            Util.qsa('.ogl_sideTab', this.panel).forEach(t => t.classList.toggle('ogl_active', t.dataset.tab === name));
+            const content = Util.qs('#ogl13SideContent');
             content.innerHTML = '';
-
-            switch(tabName) {
+            switch(name) {
                 case 'account':  this._renderAccount(content);  break;
                 case 'pinned':   this._renderPinned(content);   break;
                 case 'tagged':   this._renderTagged(content);   break;
@@ -1548,109 +1412,49 @@
             }
         }
 
-        close() {
-            this.panel?.classList.remove('open');
-        }
+        close() { this.panel?.classList.remove('ogl_open'); this.currentTab = null; }
 
-        refreshPinnedList() {
-            if (this.currentTab === 'pinned') this.openTab('pinned');
-        }
+        refreshIfOpen(tab) { if (this.currentTab === tab) this.openTab(tab); }
 
         _renderAccount(content) {
-            const myPlanets = Object.entries(this.db.data?.myPlanets || {});
-            if (!myPlanets.length) {
-                content.innerHTML = '<div style="padding:8px;color:#666;font-size:10px;">Nessun dato pianeti. Clicca 🔄 per sincronizzare.</div>';
+            const planets = Object.entries(this.db.data?.myPlanets || {});
+            if (!planets.length) {
+                content.innerHTML = '<div style="padding:10px;color:#555;font-size:10px;">Nessun dato. Clicca ↺ per sincronizzare.</div>';
                 return;
             }
-
-            const div = Util.el('div', 'ogl13-account');
-            let totM = 0, totC = 0, totD = 0;
             const now = Util.serverNow();
-
-            const rows = myPlanets.map(([id, p]) => {
-                const age  = now - (p.lastRefresh || 0);
-                const prod = p.lastRefresh ? age : 0;
-                const m = (p.metal   || 0) + (p.prodMetal   || 0) * prod;
-                const c = (p.crystal || 0) + (p.prodCrystal || 0) * prod;
-                const d = (p.deut    || 0) + (p.prodDeut    || 0) * prod;
-                totM += m; totC += c; totD += d;
-                const msu = Util.msu(m, c, d);
-                return { id, p, m, c, d, msu };
-            }).sort((a, b) => b.msu - a.msu);
-
-            div.innerHTML = `
-                <table>
-                    <thead><tr>
-                        <th>Pianeta</th>
-                        <th>M</th><th>C</th><th>D</th><th>MSU</th>
-                    </tr></thead>
-                    <tbody>
-                        ${rows.map(r => `
-                            <tr>
-                                <td style="color:#88aaff">${r.p.coords || r.id}</td>
-                                <td class="ogl13-m">${Util.formatNum(r.m)}</td>
-                                <td class="ogl13-c">${Util.formatNum(r.c)}</td>
-                                <td class="ogl13-d">${Util.formatNum(r.d)}</td>
-                                <td class="ogl13-msu">${Util.formatNum(r.msu)}</td>
-                            </tr>`).join('')}
-                        <tr class="ogl13-total">
-                            <td>TOTALE</td>
-                            <td class="ogl13-m">${Util.formatNum(totM)}</td>
-                            <td class="ogl13-c">${Util.formatNum(totC)}</td>
-                            <td class="ogl13-d">${Util.formatNum(totD)}</td>
-                            <td class="ogl13-msu">${Util.formatNum(Util.msu(totM,totC,totD))}</td>
-                        </tr>
-                    </tbody>
-                </table>
-            `;
-            content.appendChild(div);
+            let tM = 0, tC = 0, tD = 0;
+            const rows = planets.map(([id, p]) => {
+                const age = now - (p.lastRefresh || 0);
+                const m = (p.metal   || 0) + (p.prodMetal   || 0) * (p.lastRefresh ? age : 0);
+                const c = (p.crystal || 0) + (p.prodCrystal || 0) * (p.lastRefresh ? age : 0);
+                const d = (p.deut    || 0) + (p.prodDeut    || 0) * (p.lastRefresh ? age : 0);
+                tM += m; tC += c; tD += d;
+                return `<tr><td style="color:#88aaff">${p.coords || id}</td><td class="ogl_metal">${Util.formatNum(m)}</td><td class="ogl_crystal">${Util.formatNum(c)}</td><td class="ogl_deut">${Util.formatNum(d)}</td><td class="ogl_msu">${Util.formatNum(Util.msu(m,c,d))}</td></tr>`;
+            }).join('');
+            content.innerHTML = `<table class="ogl_accountTable"><thead><tr><th>Pianeta</th><th>M</th><th>C</th><th>D</th><th>MSU</th></tr></thead><tbody>${rows}<tr class="ogl_total"><td>Totale</td><td class="ogl_metal">${Util.formatNum(tM)}</td><td class="ogl_crystal">${Util.formatNum(tC)}</td><td class="ogl_deut">${Util.formatNum(tD)}</td><td class="ogl_msu">${Util.formatNum(Util.msu(tM,tC,tD))}</td></tr></tbody></table>`;
         }
 
         _renderPinned(content) {
             const pinned = Object.values(this.db.data?.udb || {}).filter(u => u.pin && u.pin !== 'none');
-            if (!pinned.length) {
-                content.innerHTML = '<div style="padding:8px;color:#666;font-size:10px;">Nessun player pinnato. Usa 📌 nella galaxy view.</div>';
-                return;
-            }
-
-            pinned.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-            pinned.forEach(u => {
-                const item = Util.el('div', 'ogl13-pinned-item');
-                item.innerHTML = `
-                    <div>
-                        <span class="ogl13-pin-type ogl13-pin-${u.pin}">${u.pin}</span>
-                        <span class="name">${u.name || u.uid}</span>
-                    </div>
-                    <div class="info">${(u.planets || []).length} pianeti${u.score?.globalRanking ? ` | #${u.score.globalRanking}` : ''}</div>
-                `;
-                if (u.planets?.length) {
-                    const c = Util.parseCoords(u.planets[0]);
-                    if (c) item.addEventListener('click', () => { location.href = Util.galaxyLink(c.g, c.s); });
-                }
-                content.appendChild(item);
+            if (!pinned.length) { content.innerHTML = '<div style="padding:10px;color:#555;font-size:10px;">Nessun player pinnato. Usa 📌 nella galaxy.</div>'; return; }
+            pinned.sort((a,b) => (a.name||'').localeCompare(b.name||'')).forEach(u => {
+                const div = Util.el('div', 'ogl_pinnedItem');
+                div.innerHTML = `<div><span class="ogl_pinType ogl_pin_${u.pin}">${u.pin}</span><span class="ogl_pName">${u.name||u.uid}</span></div><span class="ogl_pInfo">${(u.planets||[]).length} p${u.score?.globalRanking?` | #${u.score.globalRanking}`:''}</span>`;
+                const c = Util.parseCoords(u.planets?.[0]);
+                if (c) div.addEventListener('click', () => location.href = Util.galaxyLink(c.g, c.s));
+                content.appendChild(div);
             });
         }
 
         _renderTagged(content) {
             const tagged = Object.entries(this.db.data?.tdb || {});
-            if (!tagged.length) {
-                content.innerHTML = '<div style="padding:8px;color:#666;font-size:10px;">Nessuna posizione taggata. Usa i tag nella galaxy view.</div>';
-                return;
-            }
-
-            tagged.sort((a, b) => a[0].localeCompare(b[0]));
-            tagged.forEach(([id, data]) => {
-                const g = id.slice(0,3), s = id.slice(3,6), p = id.slice(6);
-                const coords = `${parseInt(g)}:${parseInt(s)}:${parseInt(p)}`;
-                const item = Util.el('div', 'ogl13-pinned-item');
-                item.innerHTML = `
-                    <div>
-                        <span class="ogl13-galaxy-tag ogl13-tag-${data.tag}" style="display:inline-block;margin-right:4px;"></span>
-                        <a class="ogl13-coords-link" href="${Util.galaxyLink(parseInt(g), parseInt(s))}">${coords}</a>
-                    </div>
-                    <div class="info">${data.tag}</div>
-                `;
-                content.appendChild(item);
+            if (!tagged.length) { content.innerHTML = '<div style="padding:10px;color:#555;font-size:10px;">Nessuna posizione taggata.</div>'; return; }
+            tagged.sort((a,b) => a[0].localeCompare(b[0])).forEach(([id, data]) => {
+                const g = parseInt(id.slice(0,3)), s = parseInt(id.slice(3,6)), p = parseInt(id.slice(6));
+                const div = Util.el('div', 'ogl_pinnedItem');
+                div.innerHTML = `<div><span class="ogl_tagBtn ogl_tag_${data.tag}" style="display:inline-block;margin-right:6px;vertical-align:middle"></span><a href="${Util.galaxyLink(g,s)}" style="color:#88aaff;text-decoration:none">${g}:${s}:${p}</a></div><span class="ogl_pInfo">${data.tag}</span>`;
+                content.appendChild(div);
             });
         }
 
@@ -1658,220 +1462,102 @@
             const stats = this.db.data?.stats || {};
             const today = this.db.todayKey();
             const todayStats = stats[today] || {};
-            const div = Util.el('div', 'ogl13-stats');
-
-            div.innerHTML = '<div style="color:#88aaff;font-size:11px;padding:4px;border-bottom:1px solid #2a3a4a;margin-bottom:4px;">Oggi — ' + today + '</div>';
-
-            const types = { raid:'⚔ Raid', expe:'🔭 Spedizioni', debris:'♻ Detriti' };
+            const header = Util.el('div');
+            header.style.cssText = 'padding:6px 8px;color:#88aaff;font-size:11px;border-bottom:1px solid #1a2530;';
+            header.textContent = 'Oggi — ' + today;
+            content.appendChild(header);
+            const types = { raid:'⚔ Raid', expe:'🔭 Spedizioni', debris:'♻ Debris' };
             Object.entries(types).forEach(([key, label]) => {
                 const s = todayStats[key];
                 if (!s) return;
-                const row = Util.el('div', 'ogl13-stats-row');
-                const msu = Util.msu(s.metal||0, s.crystal||0, s.deut||0);
-                row.innerHTML = `
-                    <span class="ogl13-stats-label">${label}</span>
-                    <span class="ogl13-stats-val">${Util.formatNum(msu)} MSU (${s.count||0})</span>
-                `;
-                div.appendChild(row);
+                const row = Util.el('div', 'ogl_statsRow');
+                row.innerHTML = `<span class="ogl_statsLabel">${label}</span><span class="ogl_statsVal">${Util.formatNum(Util.msu(s.metal||0,s.crystal||0,s.deut||0))} MSU (${s.count})</span>`;
+                content.appendChild(row);
             });
-
-            // ultimi 7 giorni
-            const weekDiv = Util.el('div');
-            weekDiv.style.cssText = 'color:#88aaff;font-size:11px;padding:4px;border-bottom:1px solid #2a3a4a;margin:8px 0 4px;';
-            weekDiv.textContent = 'Ultimi 7 giorni';
-            div.appendChild(weekDiv);
-
-            const days = Object.entries(stats).sort((a,b) => b[0].localeCompare(a[0])).slice(0, 7);
-            days.forEach(([day, ds]) => {
-                const totMsu = Object.values(ds).reduce((sum, s) => {
-                    return sum + Util.msu(s.metal||0, s.crystal||0, s.deut||0);
-                }, 0);
-                const row = Util.el('div', 'ogl13-stats-row');
-                row.innerHTML = `<span class="ogl13-stats-label">${day}</span><span class="ogl13-stats-val">${Util.formatNum(totMsu)} MSU</span>`;
-                div.appendChild(row);
+            const wHeader = Util.el('div');
+            wHeader.style.cssText = 'padding:6px 8px;color:#88aaff;font-size:11px;border-bottom:1px solid #1a2530;margin-top:8px;';
+            wHeader.textContent = 'Ultimi 7 giorni';
+            content.appendChild(wHeader);
+            Object.entries(stats).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,7).forEach(([day, ds]) => {
+                const tot = Object.values(ds).reduce((sum,s) => sum + Util.msu(s.metal||0,s.crystal||0,s.deut||0), 0);
+                const row = Util.el('div', 'ogl_statsRow');
+                row.innerHTML = `<span class="ogl_statsLabel">${day}</span><span class="ogl_statsVal">${Util.formatNum(tot)} MSU</span>`;
+                content.appendChild(row);
             });
-
-            content.appendChild(div);
         }
 
         _renderSettings(content) {
-            const div = Util.el('div', 'ogl13-settings');
-            const opts = this.db.data?.options || {};
-
-            const options = [
-                { key:'showResources',  label:'Mostra risorse nella planet list' },
-                { key:'showFleetIcons', label:'Mostra icone flotta nella planet list' },
-                { key:'showSpyTable',   label:'Mostra spy table nei messaggi' },
-                { key:'showGalaxyTags', label:'Mostra tag/pin nella galaxy view' },
-                { key:'fleetLimiter',   label:'Abilita Fleet Limiter' },
-                { key:'browserNotif',   label:'Notifiche browser per attacchi' },
+            const d = Util.el('div', 'ogl_settingsBlock');
+            const opts = [
+                { k:'showResources',          l:'Risorse nella planet list' },
+                { k:'showFleetIcons',         l:'Icone flotte nella planet list' },
+                { k:'showSpyTable',           l:'Spy table nei messaggi' },
+                { k:'showGalaxyEnhancements', l:'Tag e pin nella galaxy view' },
+                { k:'browserNotif',           l:'Notifiche browser per attacchi' },
             ];
-
-            div.innerHTML = '<h3>Opzioni Generali</h3>';
-            options.forEach(o => {
-                const label = Util.el('label');
-                const cb = document.createElement('input');
-                cb.type = 'checkbox';
-                cb.checked = opts[o.key] ?? true;
-                cb.addEventListener('change', () => {
-                    this.db.setOption(o.key, cb.checked);
-                    this.db.save();
-                });
-                label.appendChild(cb);
-                label.appendChild(document.createTextNode(' ' + o.label));
-                div.appendChild(label);
+            d.innerHTML = '<h3>Opzioni</h3>';
+            opts.forEach(o => {
+                const lbl = Util.el('label');
+                const cb  = document.createElement('input');
+                cb.type = 'checkbox'; cb.checked = this.db.getOpt(o.k);
+                cb.addEventListener('change', () => { this.db.setOpt(o.k, cb.checked); this.db.save(); });
+                lbl.appendChild(cb);
+                lbl.appendChild(document.createTextNode(' ' + o.l));
+                d.appendChild(lbl);
             });
-
-            div.innerHTML += '<h3>Sonde per spionaggio</h3>';
-            const probeLabel = Util.el('label');
-            probeLabel.textContent = 'N. sonde: ';
-            const probeInput = document.createElement('input');
-            probeInput.type = 'number';
-            probeInput.value = opts.probeCount || 6;
-            probeInput.min = 1; probeInput.max = 9999;
-            probeInput.addEventListener('change', () => {
-                this.db.setOption('probeCount', parseInt(probeInput.value) || 6);
-                this.db.save();
-            });
-            probeLabel.appendChild(probeInput);
-            div.appendChild(probeLabel);
-
-            div.innerHTML += '<h3>PTRE</h3>';
-            const ptreLabel = Util.el('label');
-            ptreLabel.textContent = 'Team Key: ';
-            const ptreInput = document.createElement('input');
-            ptreInput.type = 'text';
-            ptreInput.placeholder = 'PTRE team key';
-            ptreInput.value = opts.ptreTK || '';
-            ptreInput.addEventListener('change', () => {
-                this.db.setOption('ptreTK', ptreInput.value.trim());
-                this.db.save();
-            });
-            ptreLabel.appendChild(ptreInput);
-            div.appendChild(ptreLabel);
-
-            div.innerHTML += '<h3>Manutenzione DB</h3>';
-            const resetBtn = Util.el('button', 'ogl13-btn danger');
-            resetBtn.textContent = 'Reset DB completo';
-            resetBtn.addEventListener('click', () => {
-                if (confirm('Sei sicuro? Tutti i dati salvati verranno eliminati.')) {
-                    GM_setValue(this.db._key, null);
-                    location.reload();
-                }
-            });
-            div.appendChild(resetBtn);
-
-            const exportBtn = Util.el('button', 'ogl13-btn');
-            exportBtn.textContent = 'Esporta DB';
-            exportBtn.style.marginLeft = '6px';
-            exportBtn.addEventListener('click', () => {
-                const blob = new Blob([JSON.stringify(this.db.data, null, 2)], { type: 'application/json' });
+            d.innerHTML += '<h3>N. Sonde</h3>';
+            const pl = Util.el('label', '', 'Sonde: ');
+            const pi = document.createElement('input');
+            pi.type='number'; pi.value=this.db.getOpt('probeCount',6); pi.min=1; pi.max=9999;
+            pi.addEventListener('change', () => { this.db.setOpt('probeCount', parseInt(pi.value)||6); this.db.save(); });
+            pl.appendChild(pi); d.appendChild(pl);
+            d.innerHTML += '<h3>Manutenzione</h3>';
+            const expBtn = document.createElement('button');
+            expBtn.className = 'ogl_btn'; expBtn.textContent = 'Esporta DB';
+            expBtn.addEventListener('click', () => {
+                const blob = new Blob([JSON.stringify(this.db.data,null,2)], {type:'application/json'});
                 const a = document.createElement('a');
                 a.href = URL.createObjectURL(blob);
-                a.download = `ogl13_${Meta.playerId}_${Date.now()}.json`;
+                a.download = `ogl13_${Date.now()}.json`;
                 a.click();
             });
-            div.appendChild(exportBtn);
-
-            content.appendChild(div);
-        }
-
-        _handleKey(e) {
-            // ignora se focus su input/textarea
-            if (['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
-
-            switch(e.key) {
-                case '²':
-                case '`':
-                    if (this.panel?.classList.contains('open')) this.close();
-                    else this.openTab('settings');
-                    break;
-            }
+            const rstBtn = document.createElement('button');
+            rstBtn.className = 'ogl_btn ogl_btnDanger'; rstBtn.textContent = 'Reset DB';
+            rstBtn.style.marginLeft = '6px';
+            rstBtn.addEventListener('click', () => {
+                if (confirm('Reset completo del DB?')) { GM_setValue(this.db._key, null); location.reload(); }
+            });
+            d.appendChild(expBtn); d.appendChild(rstBtn);
+            content.appendChild(d);
         }
     }
 
     // ─── SHORTCUT MANAGER ─────────────────────────────────────────────────────
     class ShortcutManager {
-        constructor(db) {
-            this.db = db;
-        }
+        constructor(db) { this.db = db; }
 
         init() {
-            document.addEventListener('keydown', (e) => this._handle(e));
+            document.addEventListener('keydown', e => this._handle(e));
         }
 
         _handle(e) {
             if (['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
-            const isGalaxy = Meta.isGalaxy;
-            const isFleet  = Meta.isFleet;
-
-            // navigazione pianeti con i/o
             if (e.key === 'i' || e.key === 'o') {
                 e.preventDefault();
                 this._nextPlanet(e.key === 'o' ? 1 : -1);
-            }
-            // select all ships in fleet
-            if (e.key === 'a' && isFleet) {
-                e.preventDefault();
-                Util.qsa('.technology.detail_button:not(.off)').forEach(btn => {
-                    const max = Util.qs('.max', btn);
-                    if (max) max.click();
-                });
             }
         }
 
         _nextPlanet(dir) {
             const links = Util.qsa('#planetList .smallplanet .planetlink');
             if (!links.length) return;
-            const current = links.findIndex(l => l.href.includes(`cp=${Meta.planetId}`));
-            let next = (current + dir + links.length) % links.length;
-            const url = new URL(links[next].href);
-            url.searchParams.set('page', new URLSearchParams(location.search).get('page') || 'ingame');
-            url.searchParams.set('component', new URLSearchParams(location.search).get('component') || 'overview');
+            const cur  = links.findIndex(l => l.href.includes(`cp=${Meta.planetId}`));
+            const next = (cur + dir + links.length) % links.length;
+            const url  = new URL(links[next].href);
+            const sp   = new URLSearchParams(location.search);
+            if (sp.get('component')) url.searchParams.set('component', sp.get('component'));
+            if (sp.get('page'))      url.searchParams.set('page',      sp.get('page'));
             location.href = url.toString();
-        }
-    }
-
-    // ─── STATS MANAGER ────────────────────────────────────────────────────────
-    class StatsManager {
-        constructor(db) {
-            this.db = db;
-        }
-
-        parseMessage(el) {
-            const d = el.dataset;
-            const msgType = parseInt(d.rawMessagetype || d.rawMessageType || 0);
-
-            // combat report (type=25): leggi loot
-            if (msgType === 25) {
-                try {
-                    const result = JSON.parse(d.rawResult || '{}');
-                    const loot = result.loot || {};
-                    if (loot.metal || loot.crystal || loot.deuterium) {
-                        this.db.addStat('raid', {
-                            metal: loot.metal || 0,
-                            crystal: loot.crystal || 0,
-                            deut: loot.deuterium || 0,
-                        });
-                        this.db.save();
-                    }
-                } catch(e) {}
-            }
-
-            // expedition message (type=12/13/etc)
-            if (msgType === 12 || msgType === 13) {
-                try {
-                    const resources = JSON.parse(d.rawResourcesgained || d.rawResources || '{}');
-                    if (resources.metal || resources.crystal || resources.deuterium) {
-                        this.db.addStat('expe', {
-                            metal: resources.metal || 0,
-                            crystal: resources.crystal || 0,
-                            deut: resources.deuterium || 0,
-                        });
-                        this.db.save();
-                    }
-                } catch(e) {}
-            }
         }
     }
 
@@ -1881,134 +1567,100 @@
             const $ = unsafeWindow.jQuery || unsafeWindow.$;
             if (!$) return;
 
-            $(document).on('ajaxSuccess', function(event, xhr, settings, data) {
+            $(document).on('ajaxSuccess', (event, xhr, settings, data) => {
                 const url = settings.url || '';
                 try {
                     const json = typeof data === 'string' ? JSON.parse(data) : data;
 
-                    // event list / catchEvents
                     if (url.includes('catchEvents') || url.includes('eventlist')) {
                         const html = json?.content?.eventlist || '';
                         if (html) ogl.movement?.onEventsLoaded(html);
                     }
 
-                    // galaxy
                     if (url.includes('fetchSolarSystemData')) {
-                        ogl.galaxy?.parseGalaxyData(json);
+                        ogl.galaxy?.parseData(json);
                     }
 
-                    // messaggi spy
-                    if (url.includes('getMessagesList') || url.includes('messages')) {
-                        setTimeout(() => ogl.messages?.onMessagesLoaded(), 300);
+                    if (url.includes('getMessagesList') || (url.includes('messages') && url.includes('action='))) {
+                        setTimeout(() => ogl.messages?.onMessagesReloaded(), 400);
                     }
 
-                    // risorse bar
                     if (url.includes('fetchResources')) {
                         try {
                             const r = json.resources || json;
                             ogl.db.updatePlanet(Meta.planetId, {
-                                metal:   r.metal?.amount   || 0,
-                                crystal: r.crystal?.amount || 0,
-                                deut:    r.deuterium?.amount || 0,
-                                food:    r.food?.amount    || 0,
+                                metal:  r.metal?.amount   || 0,
+                                crystal:r.crystal?.amount || 0,
+                                deut:   r.deuterium?.amount || 0,
+                                food:   r.food?.amount    || 0,
                                 prodMetal:   r.metal?.production   || 0,
                                 prodCrystal: r.crystal?.production || 0,
                                 prodDeut:    r.deuterium?.production || 0,
+                                metalStorage:   r.metal?.storage   || 0,
+                                crystalStorage: r.crystal?.storage || 0,
+                                deutStorage:    r.deuterium?.storage || 0,
                             });
                             ogl.db.save();
-                            ogl.planetList?._updateAll();
-                            ogl.planetList?._injectRecap();
+                            ogl.planetList?.refresh();
                         } catch(e) {}
                     }
 
-                    // token aggiornato
-                    if (json?.newAjaxToken) {
-                        try { unsafeWindow.token = json.newAjaxToken; } catch(e) {}
-                    }
+                    if (json?.newAjaxToken) try { unsafeWindow.token = json.newAjaxToken; } catch(e) {}
                 } catch(e) {}
             });
         } catch(e) {}
     }
 
-    // ─── INIT PRINCIPALE ──────────────────────────────────────────────────────
+    // ─── INIT ─────────────────────────────────────────────────────────────────
     function main() {
-        // init DB
         const db = new DB();
-        if (!db.init()) return; // non siamo su una pagina di gioco
+        if (!db.init()) return;
 
-        // crea oggetto globale
         const ogl = {
             db,
-            planetList: null,
-            empire:     null,
-            messages:   null,
-            galaxy:     null,
-            movement:   null,
-            fleet:      null,
-            ui:         null,
-            shortcuts:  null,
-            stats:      null,
+            planetList: new PlanetListManager(db),
+            empire:     new EmpireManager(db),
+            messages:   new MessageManager(db),
+            galaxy:     new GalaxyManager(db),
+            movement:   new MovementManager(db),
+            fleet:      new FleetManager(db),
+            ui:         new UIManager(db),
+            shortcuts:  new ShortcutManager(db),
         };
         window.ogl13 = ogl;
 
-        // init managers
-        ogl.planetList = new PlanetListManager(db);
-        ogl.empire     = new EmpireManager(db);
-        ogl.messages   = new MessageManager(db);
-        ogl.galaxy     = new GalaxyManager(db);
-        ogl.movement   = new MovementManager(db);
-        ogl.fleet      = new FleetManager(db);
-        ogl.ui         = new UIManager(db);
-        ogl.shortcuts  = new ShortcutManager(db);
-        ogl.stats      = new StatsManager(db);
+        // Legge dati pagina corrente
+        ogl.empire.readCurrentPage();
+        setTimeout(() => ogl.empire.fetchResources(), 1500);
 
-        // leggi risorse pianeta corrente da pagina (disponibile su tutte le pagine)
-        ogl.empire.readCurrentPlanet();
-
-        // init UI (side panel) — disponibile su tutte le pagine
+        // UI sempre attiva
         ogl.ui.init();
         ogl.shortcuts.init();
-
-        // init page-specific
         ogl.planetList.init();
+
+        // Movement (eventi flotta) su tutte le pagine
         ogl.movement.init();
 
-        if (Meta.isMessages) {
-            ogl.messages.init();
-            // analizza anche i messaggi per le stats
-            Util.qsa('.rawMessageData').forEach(el => ogl.stats.parseMessage(el));
-        }
-
-        if (Meta.isGalaxy) {
-            ogl.galaxy.init();
-        }
-
-        if (Meta.isFleet) {
-            ogl.fleet.init();
-        }
-
-        // fetch risorse dopo 1s per avere dati aggiornati
-        setTimeout(() => ogl.empire.fetchCurrentResources(), 1000);
-
-        // init empire fetch (se dati vecchi)
+        // Empire auto-sync
         ogl.empire.init();
 
-        // AJAX hooks (aspetta jQuery)
-        const waitJq = setInterval(() => {
-            try {
-                if (unsafeWindow.jQuery || unsafeWindow.$) {
-                    clearInterval(waitJq);
-                    setupAjaxHooks(ogl);
-                }
-            } catch(e) { clearInterval(waitJq); }
-        }, 100);
-        setTimeout(() => clearInterval(waitJq), 5000);
+        // Page-specific
+        if (Meta.isMessages) ogl.messages.init();
+        if (Meta.isGalaxy)   ogl.galaxy.init();
+        if (Meta.isFleet)    ogl.fleet.init();
 
-        // save periodico
+        // AJAX hooks — attende jQuery
+        const poll = setInterval(() => {
+            try {
+                if (unsafeWindow.jQuery || unsafeWindow.$) { clearInterval(poll); setupAjaxHooks(ogl); }
+            } catch(e) { clearInterval(poll); }
+        }, 100);
+        setTimeout(() => clearInterval(poll), 5000);
+
+        // Save periodico
         setInterval(() => db.save(), 30000);
     }
 
-    // ─── ENTRY POINT ──────────────────────────────────────────────────────────
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', main);
     } else {
