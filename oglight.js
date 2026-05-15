@@ -2511,36 +2511,88 @@ class FetchManager extends Manager
     {
         type = type || 0;
 
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 60000);
-
         this.ogl.db[`lastEmpire${type}Update`] = this.ogl.db[`lastEmpire${type}Update`] || 0;
-        if(!ignoreDelay && Date.now() < this.ogl.db[`lastEmpire${type}Update`] + 60000 * 3) return;  // 3mn
+        if(!ignoreDelay && Date.now() < this.ogl.db[`lastEmpire${type}Update`] + 60000 * 3) return;
 
-        return fetch(`https://${window.location.host}/game/index.php?page=ajax&component=empire&ajax=1&planetType=${type}&asJson=1`,
+        // v13: component=empire&asJson=1 returns 405 — fetch each planet overview individually
+        const planets = this.ogl.account.planets || [];
+        const originalCpId = String(this.ogl.account.currentPlanetID);
+        const planetObjects = [];
+
+        for(const p of planets)
         {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' },
-            signal: controller.signal
-        })
-        .then(response =>
+            const id = String(type === 0 ? p.id : p.moonID);
+            if(parseInt(id) < 0) continue;
+
+            // Current planet: read resources directly from the live DOM
+            if(id === originalCpId)
+            {
+                const existing = this.ogl.db.myPlanets[id] || {};
+                planetObjects.push({
+                    id,
+                    metal: parseInt(document.querySelector('#resources_metal')?.dataset.raw || 0),
+                    crystal: parseInt(document.querySelector('#resources_crystal')?.dataset.raw || 0),
+                    deuterium: parseInt(document.querySelector('#resources_deuterium')?.dataset.raw || 0),
+                    energy: parseInt(document.querySelector('#resources_energy')?.dataset.raw || 0),
+                    food: parseInt(document.querySelector('#resources_food')?.dataset.raw || 0),
+                    fieldUsed: existing.fieldUsed || 0,
+                    fieldMax: existing.fieldMax || 0,
+                    planetID: String(type === 0 ? p.id : p.id),
+                    moonID: String(p.moonID > -1 ? p.moonID : -1),
+                    coordinates: `[${p.coords}]`,
+                    production: { hourly: [(existing.prodMetal||0)*3600, (existing.prodCrystal||0)*3600, (existing.prodDeut||0)*3600] }
+                });
+                continue;
+            }
+
+            await new Promise(r => setTimeout(r, 250));
+            try
+            {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 15000);
+                const resp = await fetch(
+                    `https://${window.location.host}/game/index.php?page=ingame&component=overview&cp=${id}`,
+                    { signal: controller.signal }
+                );
+                clearTimeout(timeout);
+                if(!resp.ok) continue;
+
+                const doc = new DOMParser().parseFromString(await resp.text(), 'text/html');
+                const coordsMeta = doc.querySelector('meta[name="ogame-planet-coordinates"]')?.getAttribute('content') || p.coords || '';
+                const existing = this.ogl.db.myPlanets[id] || {};
+
+                planetObjects.push({
+                    id,
+                    metal: parseInt(doc.querySelector('#resources_metal')?.dataset.raw || 0),
+                    crystal: parseInt(doc.querySelector('#resources_crystal')?.dataset.raw || 0),
+                    deuterium: parseInt(doc.querySelector('#resources_deuterium')?.dataset.raw || 0),
+                    energy: parseInt(doc.querySelector('#resources_energy')?.dataset.raw || 0),
+                    food: parseInt(doc.querySelector('#resources_food')?.dataset.raw || 0),
+                    fieldUsed: existing.fieldUsed || 0,
+                    fieldMax: existing.fieldMax || 0,
+                    planetID: String(type === 0 ? id : p.id),
+                    moonID: String(p.moonID > -1 ? p.moonID : -1),
+                    coordinates: coordsMeta.startsWith('[') ? coordsMeta : `[${coordsMeta}]`,
+                    production: { hourly: [0, 0, 0] }
+                });
+            }
+            catch(e)
+            {
+                console.warn(`OGLight v13: skip ${type === 0 ? 'planet' : 'moon'} ${id}:`, e.message);
+            }
+        }
+
+        // Restore original planet to avoid side effects from cookie changes
+        if(planets.length > 1 && document.querySelector('#resources_metal'))
         {
-            clearTimeout(timeout);
-            return response.json();
-        })
-        .then(result =>
+            await fetch(`https://${window.location.host}/game/index.php?page=ingame&component=overview&cp=${originalCpId}`).catch(() => {});
+        }
+
+        if(planetObjects.length > 0)
         {
-            // v13: mergedArray may already be an object, or may be missing
-            const empireData = result.mergedArray
-                ? (typeof result.mergedArray === 'string' ? JSON.parse(result.mergedArray) : result.mergedArray)
-                : result;
-            this.ogl._empire.update(empireData, type);
-            if(callback) callback();
-        })
-        .catch(error =>
-        {
-            console.error(`Can't fetch empire data`);
-            console.error(error);
-        });
+            this.ogl._empire.update({ planets: planetObjects }, type);
+        }
+        if(callback) callback();
     }
 
     async fetchLFBonuses(callback, ignoreDelay)
