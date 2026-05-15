@@ -371,7 +371,11 @@ class OGLight
         this.account.class = document.querySelector('#characterclass .sprite')?.classList.contains('miner') ? 1 : document.querySelector('#characterclass .sprite')?.classList.contains('warrior') ? 2 : 3;
         this.account.name = document.querySelector('head meta[name="ogame-player-name"]').getAttribute('content');
         this.account.rank = document.querySelector('#bar a[href*="searchRelId"]')?.parentNode.innerText.replace(/\D/g, '');
-        this.account.lang = /oglocale=([a-z]+);/.exec(document.cookie)[1];
+        // v13: oglocale may be the last cookie (no trailing ;) or renamed — use fallback
+        this.account.lang = (/oglocale=([a-z]+)(?:;|$)/.exec(document.cookie)?.[1])
+            || document.querySelector('head meta[name="ogame-language"]')?.getAttribute('content')
+            || this.db.userLang
+            || 'it';
         this.account.currentPlanetID = document.querySelector('head meta[name="ogame-planet-id"]').getAttribute('content');
         this.account.chatEnabled = document.querySelector('#chatBar');
         this.account.hasGeologist = document.querySelector('#officers .geologist.on');
@@ -414,7 +418,8 @@ class OGLight
             });
         }
 
-        if(this.account.lang != this.db.userLang && this.page != 'fleetdispatch' && this.page != 'intro')
+        // v13: skip lang-mismatch redirect if lang could not be detected reliably
+        if(this.account.lang && this.db.userLang && this.account.lang != this.db.userLang && this.page != 'fleetdispatch' && this.page != 'intro')
         {
             window.location.href = `https://${window.location.host}/game/index.php?page=ingame&component=fleetdispatch`;
             return;
@@ -1403,7 +1408,7 @@ class DomManager extends Manager
 
         if(reload) return;
 
-        this.miniStats = Util.addDom('div', { class:'ogl_miniStats ogl_ogameDiv', parent:this.links, onclick:() => { this.ogl._stats.showDetails(); }});
+        if(this.links) this.miniStats = Util.addDom('div', { class:'ogl_miniStats ogl_ogameDiv', parent:this.links, onclick:() => { this.ogl._stats.showDetails(); }});
 
         const LFComponent = document.querySelector('#commandercomponent #lifeform');
         if(LFComponent) Util.addDom('a', { child:'genetics', href:`https://${window.location.host}/game/index.php?page=ingame&component=lfbonuses`, class:'ogl_lfBonusesLink tooltip', title:'Lifeforms Bonuses', parent:LFComponent });
@@ -1501,7 +1506,7 @@ class DomManager extends Manager
             Util.addDom('a', { parent:ptreBlock, class:'menubutton tooltipRight', href:'https://ptre.chez.gg/', target:'_blank', child:`<span class="textlabel">PTRE</span>` });
         }
 
-        this.leftMenu.appendChild(fragment);
+        if(this.leftMenu) this.leftMenu.appendChild(fragment);
     }
 
     updateFooter()
@@ -1509,6 +1514,7 @@ class DomManager extends Manager
         const lang = ['fr', 'de', 'en', 'es', 'pl', 'it', 'ru', 'ar', 'mx', 'tr', 'fi', 'tw', 'gr', 'br', 'nl',
         'hr', 'sk', 'cz', 'ro', 'us', 'pt', 'dk', 'no', 'se', 'si', 'hu', 'jp', 'ba'].indexOf(this.ogl.server.lang);
 
+        if(!this.footer) return;
         this.footer.innerHTML +=
         `
             | <a target="_blank" href="https://www.mmorpg-stat.eu/0_fiche_joueur.php?pays=${lang}&ftr=${this.ogl.account.id}.dat&univers=_${this.ogl.server.id}">Mmorpg-stat</a>
@@ -2818,7 +2824,7 @@ class UIManager extends Manager
 
         if(!reloaded)
         {
-            Util.addDom('li', { before:this.ogl._dom.mainClock, child:this.ogl._dom.countColonies.innerText });
+            if(this.ogl._dom.countColonies && this.ogl._dom.mainClock) Util.addDom('li', { before:this.ogl._dom.mainClock, child:this.ogl._dom.countColonies.innerText });
             this.checkImportExport();
         }
 
