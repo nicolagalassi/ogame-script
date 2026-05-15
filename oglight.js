@@ -736,11 +736,23 @@ class OGLight
 
         $(document).on("ajaxSuccess", function(event, xhr, settings)
         {
-            if(settings.url.indexOf('action=getMessagesList') >= 0 && settings.data.indexOf('showTrash=true') < 0)
+            if(settings.url.indexOf('action=getMessagesList') >= 0 && settings.data?.indexOf('showTrash=true') < 0)
             {
                 const tabID = parseInt(new URLSearchParams(settings.data).get('activeSubTab')) || -1;
                 self._message.tabID = tabID;
                 self._message.checkTab(); // check messages after pagination
+            }
+            // v13: getMessageWrapper loads the shell; use activeTab from POST body to set tabID
+            else if(settings.url.indexOf('action=getMessageWrapper') >= 0)
+            {
+                // activeTab=2 is the spy/combat/expedition tab group; default subtab=20 (spies)
+                const subTab = parseInt(new URLSearchParams(settings.data).get('activeSubTab')) || 20;
+                if(subTab) self._message.tabID = subTab;
+                // Watch for messages to be injected after wrapper loads
+                setTimeout(() =>
+                {
+                    if(document.querySelector('.msg')) self._message.checkTab();
+                }, 1500);
             }
             else if(settings.url.indexOf('page=standalone') >= 0 && settings.url.indexOf('component=planetbar') >= 0)
             {
@@ -6452,21 +6464,26 @@ class GalaxyManager extends Manager
         galaxy = this.galaxy;
         system = this.system;
 
-        document.querySelector('#galaxy_input').value = this.galaxy;
-        document.querySelector('#system_input').value = this.system;
+        const _galaxyInput = document.querySelector('#galaxy_input');
+        const _systemInput = document.querySelector('#system_input');
+        if(_galaxyInput) _galaxyInput.value = this.galaxy;
+        if(_systemInput) _systemInput.value = this.system;
 
         let ptrePositions = {}; // ptre positions data
         let ptreActivities = {}; // ptre activities data
 
-        this.ogl.db.spyProbesCount = data.system.settingsProbeCount || 0;
+        this.ogl.db.spyProbesCount = data.system?.settingsProbeCount || 0;
 
         let getActivity = element =>
         {
-            if(element.activity.showActivity == 15) return '*'; // acti
-            else return element.activity.idleTime || 60;
+            if(element.activity?.showActivity == 15) return '*'; // acti
+            else return element.activity?.idleTime || 60;
         }
-        
-        data.system.galaxyContent.forEach(line =>
+
+        // v13: guard against unexpected response structure
+        const _galaxyContent = data.system?.galaxyContent || data.galaxyContent || [];
+
+        _galaxyContent.forEach(line =>
         {
             const position = line.position;
             const debris = { metal:0, crystal:0, deut:0, total:0 };
@@ -8165,8 +8182,10 @@ class MessageManager extends Manager
         }
         else
         {
-            // v13: observe the message container for first .msg to appear
-            const _msgRoot = document.querySelector('#messagecontainercomponent') || document.body;
+            // v13: messages load async into #messages .messagesHolder
+            const _msgRoot = document.querySelector('#messages')
+                || document.querySelector('#messagecontainercomponent')
+                || document.body;
             const _msgObs = new MutationObserver(() =>
             {
                 if(document.querySelector('.msg'))
@@ -8303,10 +8322,12 @@ class MessageManager extends Manager
         this.ptreCounterSpies = {};
 
         const messageIds = [];
-        // v13: ogame.messages.content may be empty; fall back to live DOM
+        // v13: ogame.messages.content may be empty; fall back to live DOM (v13 uses .messagesHolder)
         const rawHtml = (ogame.messages?.content?.length > 0)
             ? ogame.messages.content.join('')
-            : document.querySelector('#messagecontainercomponent .content')?.innerHTML || '';
+            : (document.querySelector('#messages .messagesHolder')
+                || document.querySelector('#messagecontainercomponent .content')
+                || document.querySelector('.messagesHolder'))?.innerHTML || '';
         const xml = new DOMParser().parseFromString(rawHtml, 'text/html');
         xml.querySelectorAll('.msg').forEach(xmlLine =>
         {
@@ -8953,12 +8974,14 @@ class MessageManager extends Manager
         if(!isOutdated) this.spytable.classList.remove('ogl_outdated');
         this.spytable.querySelector('.ogl_lineWrapper')?.remove();
         this.spytable.appendChild(wrapper);
-        const _msgContent = document.querySelector('#messagecontainercomponent .content')
-            || document.querySelector('.tab_inner')
-            || document.querySelector('#subtabs-nfFleets20');
+        // v13: messages are in #messages .messagesHolder; older versions use #messagecontainercomponent .content
+        const _msgContent = document.querySelector('#messages .messagesHolder')
+            || document.querySelector('#messagecontainercomponent .content')
+            || document.querySelector('.messagesHolder')
+            || document.querySelector('.tab_inner');
         if(_msgContent)
         {
-            const _before = _msgContent.querySelector('.messageContent') || _msgContent.querySelector('.msg') || null;
+            const _before = _msgContent.querySelector('.msg') || _msgContent.querySelector('.messageContent') || null;
             _msgContent.insertBefore(this.spytable, _before);
         }
 
