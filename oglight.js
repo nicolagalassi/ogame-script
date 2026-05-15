@@ -1025,7 +1025,7 @@ class OGLight
                         xhr.abort();
                     }
                 }
-                else if(this.url.indexOf('action=fetchGalaxyContent') >= 0) // abort galaxy spam
+                else if(this.url.indexOf('action=fetchSolarSystemData') >= 0 || this.url.indexOf('action=fetchGalaxyContent') >= 0) // abort galaxy spam (v13: fetchSolarSystemData)
                 {
                     if(self._galaxy.xhr) self._galaxy.xhr.abort();
                     self._galaxy.xhr = xhr;
@@ -6396,28 +6396,37 @@ class GalaxyManager extends Manager
 
     load()
     {
-        if(this.ogl.page != 'galaxy' || !unsafeWindow.galaxy) return;
+        // v13: galaxy global might not exist yet, fall back to URL params
+        if(this.ogl.page != 'galaxy') return;
+        if(!unsafeWindow.galaxy)
+        {
+            unsafeWindow.galaxy = parseInt(new URLSearchParams(window.location.search).get('galaxy')) || 1;
+            unsafeWindow.system = parseInt(new URLSearchParams(window.location.search).get('system')) || 1;
+        }
 
-        this.galaxy = galaxy;
-        this.system = system;
+        this.galaxy = unsafeWindow.galaxy;
+        this.system = unsafeWindow.system;
         this.position = parseInt(new URLSearchParams(window.location.search).get('position'));
         if(this.position) this.highlight = `${this.galaxy}:${this.system}:${this.position}`;
 
         const loader = document.querySelector('#galaxyLoading');
-        loader.setAttribute('data-currentposition', this.galaxy+':'+this.system);
+        loader?.setAttribute('data-currentposition', this.galaxy+':'+this.system);
 
         const _galaxySelf = this;
-        // Wrap loadContentNew directly (Util.overWrite loses context for class methods)
-        const _origLoadContentNew = unsafeWindow.loadContentNew;
-        unsafeWindow.loadContentNew = function(g, s)
+        // v13: loadContentNew may not exist — only wrap if present
+        if(unsafeWindow.loadContentNew)
         {
-            _galaxySelf.unloadSystem();
-            loader.setAttribute('data-currentPosition', `${g}:${s}`);
-            tippy.hideAll();
-            return _origLoadContentNew.call(this, g, s);
-        };
+            const _origLoadContentNew = unsafeWindow.loadContentNew;
+            unsafeWindow.loadContentNew = function(g, s)
+            {
+                _galaxySelf.unloadSystem();
+                loader?.setAttribute('data-currentPosition', `${g}:${s}`);
+                tippy?.hideAll();
+                return _origLoadContentNew.call(this, g, s);
+            };
+        }
 
-        submitForm();
+        if(typeof submitForm === 'function') submitForm();
 
         this.ogl._fleet.updateSystemSpy();
     }
@@ -8140,15 +8149,34 @@ class MessageManager extends Manager
         this.deleteList = [];
         this.dialogDelay = 0;
 
-        Util.overWrite('paginatorPrevious', unsafeWindow.ogame.messages, false, () => { if(this.tabID != 20) this.checkTab() });
-        Util.overWrite('paginatorNext', unsafeWindow.ogame.messages, false, () => { if(this.tabID != 20) this.checkTab() });
-        Util.overWrite('paginatorFirst', unsafeWindow.ogame.messages, false, () => { if(this.tabID != 20) this.checkTab() });
-        Util.overWrite('paginatorLast', unsafeWindow.ogame.messages, false, () => { if(this.tabID != 20) this.checkTab() });
+        // v13: ogame.messages object may not exist — guard before overwriting
+        if(unsafeWindow.ogame?.messages)
+        {
+            Util.overWrite('paginatorPrevious', unsafeWindow.ogame.messages, false, () => { if(this.tabID != 20) this.checkTab() });
+            Util.overWrite('paginatorNext', unsafeWindow.ogame.messages, false, () => { if(this.tabID != 20) this.checkTab() });
+            Util.overWrite('paginatorFirst', unsafeWindow.ogame.messages, false, () => { if(this.tabID != 20) this.checkTab() });
+            Util.overWrite('paginatorLast', unsafeWindow.ogame.messages, false, () => { if(this.tabID != 20) this.checkTab() });
+        }
 
-        // occurs if OGL loads after ogame messages
+        // occurs if OGL loads after ogame messages; in v13 messages load async via web component
         if(document.querySelector('.msg'))
         {
             this.checkTab();
+        }
+        else
+        {
+            // v13: observe the message container for first .msg to appear
+            const _msgRoot = document.querySelector('#messagecontainercomponent') || document.body;
+            const _msgObs = new MutationObserver(() =>
+            {
+                if(document.querySelector('.msg'))
+                {
+                    _msgObs.disconnect();
+                    this.checkTab();
+                }
+            });
+            _msgObs.observe(_msgRoot, { childList: true, subtree: true });
+            setTimeout(() => _msgObs.disconnect(), 15000);
         }
 
         setTimeout(() => this.checkBoard(), 400);
@@ -8925,7 +8953,14 @@ class MessageManager extends Manager
         if(!isOutdated) this.spytable.classList.remove('ogl_outdated');
         this.spytable.querySelector('.ogl_lineWrapper')?.remove();
         this.spytable.appendChild(wrapper);
-        document.querySelector('#messagecontainercomponent .content').insertBefore(this.spytable, document.querySelector('#messagecontainercomponent .content .messageContent'));
+        const _msgContent = document.querySelector('#messagecontainercomponent .content')
+            || document.querySelector('.tab_inner')
+            || document.querySelector('#subtabs-nfFleets20');
+        if(_msgContent)
+        {
+            const _before = _msgContent.querySelector('.messageContent') || _msgContent.querySelector('.msg') || null;
+            _msgContent.insertBefore(this.spytable, _before);
+        }
 
         this.updateSumLine();
         wrapper.appendChild(this.spySumLine);
