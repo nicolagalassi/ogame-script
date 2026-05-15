@@ -515,9 +515,10 @@ class OGLight
                 <li>War fleets:<div>x${this.server.warFleetSpeed}</div></li>
             </ul>`;
 
-            (document.querySelector('#pageReloader') || document.querySelector('#logoLink')).classList.add('tooltipBottom');
-            (document.querySelector('#pageReloader') || document.querySelector('#logoLink')).setAttribute('title', universeInfo);
-            document.querySelector('#pageContent').appendChild(Util.addDom('div', { class:'ogl_universeName', child:`${this.server.name}.${this.server.lang}` }));
+            const _logoEl = document.querySelector('#pageReloader') || document.querySelector('#logoLink');
+            _logoEl?.classList.add('tooltipBottom');
+            _logoEl?.setAttribute('title', universeInfo);
+            document.querySelector('#pageContent')?.appendChild(Util.addDom('div', { class:'ogl_universeName', child:`${this.server.name}.${this.server.lang}` }));
 
             this.checkPTRECompatibility();
             
@@ -679,6 +680,15 @@ class OGLight
             this.currentPlanet.obj.energy = Math.floor(resourcesBar.resources.energy?.amount || 0);
             this.currentPlanet.obj.food = Math.floor(resourcesBar.resources.food?.amount || 0);
             this.currentPlanet.obj.population = Math.floor(resourcesBar.resources.population?.amount || 0);
+            // New OGame 2025: storage is available directly in resourcesBar, no need for empire fetch
+            this.currentPlanet.obj.metalStorage = Math.floor(resourcesBar.resources.metal?.storage || 0);
+            this.currentPlanet.obj.crystalStorage = Math.floor(resourcesBar.resources.crystal?.storage || 0);
+            this.currentPlanet.obj.deutStorage = Math.floor(resourcesBar.resources.deuterium?.storage || 0);
+            this.currentPlanet.obj.foodStorage = Math.floor(resourcesBar.resources.food?.storage || 0);
+            // Also grab production rates directly (prod is in units/sec)
+            if(resourcesBar.resources.metal?.production) this.currentPlanet.obj.prodmetal = resourcesBar.resources.metal.production;
+            if(resourcesBar.resources.crystal?.production) this.currentPlanet.obj.prodcrystal = resourcesBar.resources.crystal.production;
+            if(resourcesBar.resources.deuterium?.production) this.currentPlanet.obj.proddeut = resourcesBar.resources.deuterium.production;
             this.currentPlanet.obj.lifeform = document.querySelector('#lifeform .lifeform-item-icon')?.className.replace(/\D/g, '');
             this.currentPlanet.obj.lastRefresh = this._time.serverTime;
 
@@ -811,6 +821,33 @@ class OGLight
                 }
 
                 checkMovement();
+            }
+            else if(settings.url.indexOf('action=fetchResources') >= 0)
+            {
+                // Intercept resourcesbar updates to keep per-planet data current
+                // This fires whenever the user switches planets or resources refresh
+                try
+                {
+                    const _rb = JSON.parse(xhr.responseText);
+                    if(_rb?.resources)
+                    {
+                        const _planetID = document.querySelector('head meta[name="ogame-planet-id"]')?.getAttribute('content');
+                        if(_planetID && self.ogl.db.myPlanets[_planetID])
+                        {
+                            const _r = _rb.resources;
+                            if(_r.metal?.amount !== undefined)     self.ogl.db.myPlanets[_planetID].metal        = Math.floor(_r.metal.amount);
+                            if(_r.crystal?.amount !== undefined)   self.ogl.db.myPlanets[_planetID].crystal      = Math.floor(_r.crystal.amount);
+                            if(_r.deuterium?.amount !== undefined) self.ogl.db.myPlanets[_planetID].deut         = Math.floor(_r.deuterium.amount);
+                            if(_r.metal?.storage !== undefined)    self.ogl.db.myPlanets[_planetID].metalStorage = Math.floor(_r.metal.storage);
+                            if(_r.crystal?.storage !== undefined)  self.ogl.db.myPlanets[_planetID].crystalStorage = Math.floor(_r.crystal.storage);
+                            if(_r.deuterium?.storage !== undefined)self.ogl.db.myPlanets[_planetID].deutStorage  = Math.floor(_r.deuterium.storage);
+                            if(_r.metal?.production)               self.ogl.db.myPlanets[_planetID].prodmetal    = _r.metal.production;
+                            if(_r.crystal?.production)             self.ogl.db.myPlanets[_planetID].prodcrystal  = _r.crystal.production;
+                            if(_r.deuterium?.production)           self.ogl.db.myPlanets[_planetID].proddeut     = _r.deuterium.production;
+                        }
+                    }
+                }
+                catch(e) {}
             }
             else if(settings.url.indexOf('action=miniFleet') >= 0)
             {
@@ -6369,12 +6406,16 @@ class GalaxyManager extends Manager
         const loader = document.querySelector('#galaxyLoading');
         loader.setAttribute('data-currentposition', this.galaxy+':'+this.system);
 
-        Util.overWrite('loadContentNew', unsafeWindow, (g, s) =>
+        const _galaxySelf = this;
+        // Wrap loadContentNew directly (Util.overWrite loses context for class methods)
+        const _origLoadContentNew = unsafeWindow.loadContentNew;
+        unsafeWindow.loadContentNew = function(g, s)
         {
-            this.unloadSystem();
+            _galaxySelf.unloadSystem();
             loader.setAttribute('data-currentPosition', `${g}:${s}`);
             tippy.hideAll();
-        });
+            return _origLoadContentNew.call(this, g, s);
+        };
 
         submitForm();
 
@@ -6383,11 +6424,16 @@ class GalaxyManager extends Manager
 
     check(data)
     {
+        this._rowStructureLogged = false; // reset each system change
         if(!data.success || !data.system)
         {
             this.ogl._notification.addToQueue(`Error, cannot fetch [${this.galaxy}:${this.system}] data`);
             return;
         }
+
+        // If rows not yet in DOM, wait for OGame to render them
+        const _proceedWithCheck = () =>
+        {
 
         let isEmpty = true;
 
@@ -6433,6 +6479,7 @@ class GalaxyManager extends Manager
                 return;
             }
 
+            if(!row) return; // row not in DOM yet, skip
             const coords = `${this.galaxy}:${this.system}:${position}`;
             const playerID = parseInt(line.player.playerId == 99999 ? -1 : line.player.playerId);
             const playerName = line.player.playerName;
@@ -6631,7 +6678,7 @@ class GalaxyManager extends Manager
 
             if(!galaxyMoreInfo.parentElement)
             {
-                document.querySelector('.ctGalaxyFooter #colonized').appendChild(galaxyMoreInfo);
+                document.querySelector('.ctGalaxyFooter #colonized')?.appendChild(galaxyMoreInfo);
             }
 
             this.checkCurrentSystem();
@@ -6642,18 +6689,23 @@ class GalaxyManager extends Manager
     {
         const page = Math.max(1, Math.ceil(player.score.globalRanking / 100));
 
-        this.ogl._ui.turnIntoPlayerLink(player.uid, row.querySelector('.cellPlayerName [class*="status_abbr"]'), player.name, player.status);
-        Util.addDom('a', { class:'ogl_ranking', parent:row.querySelector('.cellPlayerName'), href:`https://${window.location.host}/game/index.php?page=highscore&site=${page}&searchRelId=${player.uid}`, child:'#'+player.score.globalRanking });
+        // New OGame may use different class names for galaxy row cells
+        const _cellPlayer = row.querySelector('.cellPlayerName') || row.querySelector('[class*="cellPlayer"]') || row.querySelector('td:nth-child(6)');
+        const _cellPlanet = row.querySelector('.cellPlanetName') || row.querySelector('[class*="cellPlanet"]') || row.querySelector('td:nth-child(2)');
+        const _statusEl   = row.querySelector('[class*="status_abbr"]') || row.querySelector('[class*="status_"]');
+
+        this.ogl._ui.turnIntoPlayerLink(player.uid, _statusEl, player.name, player.status);
+        if(_cellPlayer) Util.addDom('a', { class:'ogl_ranking', parent:_cellPlayer, href:`https://${window.location.host}/game/index.php?page=highscore&site=${page}&searchRelId=${player.uid}`, child:'#'+player.score.globalRanking });
 
         if(!isOwn)
         {
-            this.ogl._ui.addPinButton(row.querySelector('.cellPlayerName'), player.uid);
-            this.ogl._ui.addTagButton(row.querySelector('.cellPlanetName'), coords);
+            if(_cellPlayer) this.ogl._ui.addPinButton(_cellPlayer, player.uid);
+            if(_cellPlanet) this.ogl._ui.addTagButton(_cellPlanet, coords);
         }
 
         if(player.uid == this.ogl.db.currentSide || this.highlight == coords)
         {
-            row.querySelector('.cellPlayerName').classList.add('ogl_active');
+            row.querySelector('.cellPlayerName')?.classList.add('ogl_active');
             if(this.highlight == coords) this.highlight = false;
         }
     }
@@ -6662,7 +6714,7 @@ class GalaxyManager extends Manager
     {
         if(debris.total > 0)
         {
-            const dom = row.querySelector('.microdebris');
+            const dom = row.querySelector('.microdebris') || row.querySelector('[class*="debris"]') || row.querySelector('.cellDebris');
             dom.classList.remove('debris_1');
 
             const ships = dom.querySelector('[onclick*="sendShips(8"]');
@@ -6747,6 +6799,54 @@ class GalaxyManager extends Manager
         if(this.ogl._tooltip) this.ogl._tooltip.initTooltipList(document.querySelectorAll('#galaxyContent .tooltipClick, #galaxyContent .ownPlayerRow, .ogl_moreGalaxyInfo .tooltip'));
         //initTooltips();
         this.ogl._fleet.checkSendShips();
+
+        }; // end _proceedWithCheck
+
+        // Use MutationObserver to wait for galaxy rows to appear in DOM
+        const _galaxyContent = document.querySelector('#galaxyContent') || document.querySelector('.galaxyTable');
+        if(document.querySelector('#galaxyRow1') || document.querySelector('[id^="galaxyRow"]'))
+        {
+            _proceedWithCheck();
+        }
+        else if(_galaxyContent)
+        {
+            // Observe galaxy container for rows to be injected
+            const _obs = new MutationObserver(() =>
+            {
+                if(document.querySelector('#galaxyRow1') || document.querySelector('[id^="galaxyRow"]'))
+                {
+                    _obs.disconnect();
+                    _proceedWithCheck();
+                }
+            });
+            _obs.observe(_galaxyContent, { childList: true, subtree: true });
+            // Timeout fallback
+            setTimeout(() => { _obs.disconnect(); _proceedWithCheck(); }, 3000);
+        }
+        else
+        {
+            // No galaxy container yet - observe body
+            const _bodyObs = new MutationObserver(() =>
+            {
+                const _gc = document.querySelector('#galaxyContent') || document.querySelector('.galaxyTable');
+                if(_gc)
+                {
+                    _bodyObs.disconnect();
+                    const _obs2 = new MutationObserver(() =>
+                    {
+                        if(document.querySelector('#galaxyRow1') || document.querySelector('[id^="galaxyRow"]'))
+                        {
+                            _obs2.disconnect();
+                            _proceedWithCheck();
+                        }
+                    });
+                    _obs2.observe(_gc, { childList: true, subtree: true });
+                    setTimeout(() => { _obs2.disconnect(); _proceedWithCheck(); }, 3000);
+                }
+            });
+            _bodyObs.observe(document.body, { childList: true, subtree: false });
+            setTimeout(() => { _bodyObs.disconnect(); _proceedWithCheck(); }, 5000);
+        }
     }
 }
 
