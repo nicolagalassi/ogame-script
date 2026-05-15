@@ -799,7 +799,7 @@ class OGLight
             }
             else if(settings.url.indexOf('action=checkTarget') >= 0) // fleetdispatcher fetchTargetPlayerData()
             {
-                document.querySelector('#planetList').classList.remove('ogl_notReady');
+                document.querySelector('#planetList')?.classList.remove('ogl_notReady');
             }
             else if(settings.url.indexOf('component=eventList') >= 0 && settings.url.indexOf('asJson=1') < 0)
             {
@@ -3347,7 +3347,7 @@ class UIManager extends Manager
     {
         if((this.ogl.db.nextImportExport || 0) < serverTime.getTime())
         {
-            document.querySelector('.menubutton[href*=traderOverview]').classList.add('ogl_active');
+            document.querySelector('.menubutton[href*=traderOverview], .menubutton[href*=trader], [data-component=traderOverview]')?.classList.add('ogl_active');
         }
 
         window.addEventListener('beforeunload', () =>
@@ -5312,7 +5312,7 @@ class FleetManager extends Manager
 
         Util.overWrite('updateTarget', fleetDispatcher, () =>
         {
-            document.querySelector('#planetList').classList.add('ogl_notReady');
+            document.querySelector('#planetList')?.classList.add('ogl_notReady');
         });
 
         // fix undefined "hasEnoughFuel" value
@@ -5321,7 +5321,7 @@ class FleetManager extends Manager
         Util.overWrite('selectMission', fleetDispatcher, false, () =>
         {
             this.lastMissionOrder = fleetDispatcher.mission;
-            document.querySelector('#fleet2').setAttribute('data-selected-mission', fleetDispatcher.mission);
+            document.querySelector('#fleet2')?.setAttribute('data-selected-mission', fleetDispatcher.mission);
         });
 
         Util.overWrite('switchToPage', fleetDispatcher, () =>
@@ -6494,7 +6494,7 @@ class GalaxyManager extends Manager
             let moonID = -1;
             let moonSize = -1;
 
-            row.querySelector('.cellDebris').classList.remove('ogl_important');
+            row.querySelector('.cellDebris')?.classList.remove('ogl_important');
             
             line.planets.forEach(element =>
             {
@@ -9836,8 +9836,8 @@ class HighscoreManager extends Manager
 
         if(currentCategory !== 1 || !typesList[currentType]) return;
 
-        document.querySelector('#stat_list_content').setAttribute('data-category', currentCategory);
-        document.querySelector('#stat_list_content').setAttribute('data-type', currentType);
+        document.querySelector('#stat_list_content')?.setAttribute('data-category', currentCategory);
+        document.querySelector('#stat_list_content')?.setAttribute('data-type', currentType);
 
         const data = JSON.parse(GM_getValue(this.rankingDBName) || '{}');
         const ts = data?.ranks_array?.[0]?.timestamp;
