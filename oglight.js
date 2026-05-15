@@ -4174,10 +4174,10 @@ class TopbarManager extends Manager
             let temperature = Util.addDom('div',
             {
                 parent:grid,
-                child:planet.temperature + 40 + '°C'
+                child:(isNaN(planet.temperature) ? '?' : planet.temperature + 40) + '°C'
             });
 
-            stack.temperature += (planet.temperature + 40);
+            stack.temperature += (isNaN(planet.temperature) ? 0 : planet.temperature + 40);
 
             if(planet.temperature >= 110) temperature.style.color = "#af644d"; // too hot
             else if(planet.temperature>= 10) temperature.style.color = "#af9e4d"; // hot
@@ -4197,32 +4197,32 @@ class TopbarManager extends Manager
             {
                 class:'ogl_metal',
                 parent:grid,
-                child:`<strong>${planet[1]}</strong><small>+${Util.formatToUnits(Math.round((planet.prodmetal || 0) * 3600 * 24))}</small>`
+                child:`<strong>${planet[1] ?? '-'}</strong><small>+${Util.formatToUnits(Math.round((planet.prodmetal || 0) * 3600 * 24))}</small>`
             });
 
-            if(planet.upgrades?.['baseBuilding']?.[0]?.name.trim() == this.ogl.db.serverData[1] && serverTime.getTime() < planet.upgrades?.['baseBuilding']?.[0]?.end) metal.querySelector('strong').innerHTML += `<span>${planet[1]+1}</span>`;
+            if(planet[1] !== undefined && planet.upgrades?.['baseBuilding']?.[0]?.name.trim() == this.ogl.db.serverData[1] && serverTime.getTime() < planet.upgrades?.['baseBuilding']?.[0]?.end) metal.querySelector('strong').innerHTML += `<span>${planet[1]+1}</span>`;
 
             // crystal mine
             let crystal = Util.addDom('div',
             {
                 class:'ogl_crystal',
                 parent:grid,
-                child:`<strong>${planet[2]}</strong><small>+${Util.formatToUnits(Math.round((planet.prodcrystal || 0) * 3600 * 24))}</small>`
+                child:`<strong>${planet[2] ?? '-'}</strong><small>+${Util.formatToUnits(Math.round((planet.prodcrystal || 0) * 3600 * 24))}</small>`
             });
 
-            if(planet.upgrades?.['baseBuilding']?.[0]?.name.trim() == this.ogl.db.serverData[2] && serverTime.getTime() < planet.upgrades?.['baseBuilding']?.[0]?.end) crystal.querySelector('strong').innerHTML += `<span>${planet[2]+1}</span>`;
+            if(planet[2] !== undefined && planet.upgrades?.['baseBuilding']?.[0]?.name.trim() == this.ogl.db.serverData[2] && serverTime.getTime() < planet.upgrades?.['baseBuilding']?.[0]?.end) crystal.querySelector('strong').innerHTML += `<span>${planet[2]+1}</span>`;
 
             // deut mine
             let deut = Util.addDom('div',
             {
                 class:'ogl_deut',
                 parent:grid,
-                child:`<strong>${planet[3]}</strong><small>+${Util.formatToUnits(Math.round((planet.proddeut || 0) * 3600 * 24))}</small>`
+                child:`<strong>${planet[3] ?? '-'}</strong><small>+${Util.formatToUnits(Math.round((planet.proddeut || 0) * 3600 * 24))}</small>`
             });
 
-            stack.metal += planet[1];
-            stack.crystal += planet[2];
-            stack.deut += planet[3];
+            stack.metal += (planet[1] || 0);
+            stack.crystal += (planet[2] || 0);
+            stack.deut += (planet[3] || 0);
 
             stack.prodmetal += planet.prodmetal || 0;
             stack.prodcrystal += planet.prodcrystal || 0;
@@ -6532,9 +6532,9 @@ class GalaxyManager extends Manager
                 }
                 else if(element.planetType == 2) // debris
                 {
-                    debris.metal = parseInt(element.resources.metal.amount);
-                    debris.crystal = parseInt(element.resources.crystal.amount);
-                    debris.deut = parseInt(element.resources.deuterium.amount);
+                    debris.metal = parseInt(element.resources?.metal?.amount ?? element.resources?.metal ?? 0);
+                    debris.crystal = parseInt(element.resources?.crystal?.amount ?? element.resources?.crystal ?? 0);
+                    debris.deut = parseInt(element.resources?.deuterium?.amount ?? element.resources?.deuterium ?? 0);
                     debris.total = debris.metal + debris.crystal + debris.deut;
 
                     this.updateDebris(debris, row);
@@ -7209,20 +7209,20 @@ class AccountManager extends Manager
                 }
                 <div>${item._ogl.name}</div>
                 <div>${planet.fieldUsed}/${planet.fieldMax} (<span>${planet.fieldMax-planet.fieldUsed}</span>)</div>
-                <div class="ogl_temperature">${planet.temperature+40}°c</div>
+                <div class="ogl_temperature">${isNaN(planet.temperature) ? '?' : planet.temperature+40}°c</div>
                 <div class="ogl_icon ogl_lifeform${planet.lifeform || 0}"></div>
                 <div class="ogl_metal">
-                    <strong>${planet[1]}</strong>
+                    <strong>${planet[1] ?? '-'}</strong>
                     <div class="ogl_upgrade">${metalUpgrade ? `(${metalUpgrade.lvl})` : ``}</div>
                     <small>+${Util.formatToUnits(Math.round((planet.prodMetal || 0) * 3600 * 24))}</small>
                 </div>
                 <div class="ogl_crystal">
-                    <strong>${planet[2]}</strong>
+                    <strong>${planet[2] ?? '-'}</strong>
                     <div class="ogl_upgrade">${crystalUpgrade ? `(${crystalUpgrade.lvl})` : ``}</div>
                     <small>+${Util.formatToUnits(Math.round((planet.prodCrystal || 0) * 3600 * 24))}</small>
                 </div>
                 <div class="ogl_deut">
-                    <strong>${planet[3]}</strong>
+                    <strong>${planet[3] ?? '-'}</strong>
                     <div class="ogl_upgrade">${deutUpgrade ? `(${deutUpgrade.lvl})` : ``}</div>
                     <small>+${Util.formatToUnits(Math.round((planet.prodDeut || 0) * 3600 * 24))}</small>
                 </div>
@@ -11714,7 +11714,7 @@ class TechManager extends Manager
     calcMaxCrawler()
     {
         const planet = this.ogl.currentPlanet.obj;
-        const base = (planet[1] + planet[2] + planet[3]) * 8;
+        const base = ((planet[1] || 0) + (planet[2] || 0) + (planet[3] || 0)) * 8;
         const lf31BonusValue = this.ogl.db.lfBonuses?.MiscImprovedCrawler?.bonus || 0;
         const lf36BonusValue = this.ogl.account.class === 1 ? (this.ogl.db.lfBonuses?.Characterclasses1?.bonus || 0) : 0;
         const lf36AmountBonus = (this.ogl.account.hasGeologist && this.ogl.account.class === 1) ? (1.1 + (.1 * lf36BonusValue / 100)) : 1;
