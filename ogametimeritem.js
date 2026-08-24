@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OGame: Item & Officer Timers
 // @namespace    https://greasyfork.org/users/nicolagalassi
-// @version      1.7.2
+// @version      1.7.8
 // @description  Displays remaining time on active items and officers. Supports IT, EN, DE, FR, TR.
 // @author       galax
 // @match        https://*.ogame.gameforge.com/game/index.php?page=*
@@ -28,9 +28,11 @@
             font-family: Verdana, Arial, sans-serif;
             font-weight: bold;
             padding: 1px 4px;
-            border-radius: 3px;
+            border-radius: 2px;
             border: 1px solid #444;
-            white-space: nowrap;
+            white-space: pre-line;
+            text-align: center;
+            line-height: 1.0;
             z-index: 9999;
             pointer-events: none;
             text-shadow: 1px 1px 0 #000;
@@ -53,20 +55,48 @@
     };
 
     function parseOfficerTooltip(tooltip) {
-        for (const re of Object.values(OFFICER_REGEX)) {
-            const match = tooltip.match(re);
-            if (!match) continue;
-
-            const amount = parseInt(match[1], 10);
-            const unit = match[2].toLowerCase();
-
-            if (/^(settiman|week|woch|semain|hafta)/.test(unit)) return (amount * 7) + 'd';
-            if (/^(giorn|day|tag|jour|gün)/.test(unit)) return amount + 'd';
-            if (/^(or[ae]?|hour|stund|heur|saat)/.test(unit)) return amount + 'h';
-            if (/^(minut|dakika)/.test(unit)) return amount + 'm';
-            return amount + unit[0];
+        // 1. Prova a cercare una data esplicita (più precisa)
+        const dateMatch = tooltip.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})\s+(\d{1,2}):(\d{1,2}):(\d{1,2})/);
+        if (dateMatch) {
+            const [_, d, m, y, h, min, s] = dateMatch;
+            const expiry = new Date(y, m - 1, d, h, min, s).getTime();
+            return formatRemainingTime(expiry);
         }
-        return null;
+
+        // 2. Fallback: parsing della durata (multi-parte)
+        let totalDays = 0;
+        let totalHours = 0;
+        let totalMinutes = 0;
+        let found = false;
+
+        for (const re of Object.values(OFFICER_REGEX)) {
+            const globalRe = new RegExp(re.source, 'gi');
+            let match;
+            while ((match = globalRe.exec(tooltip)) !== null) {
+                found = true;
+                const amount = parseInt(match[1], 10);
+                const unit = match[2].toLowerCase();
+
+                if (/^(settiman|week|woch|semain|hafta)/.test(unit)) totalDays += (amount * 7);
+                else if (/^(giorn|day|tag|jour|gün)/.test(unit)) totalDays += amount;
+                else if (/^(or[ae]?|hour|stund|heur|saat)/.test(unit)) totalHours += amount;
+                else if (/^(minut|dakika)/.test(unit)) totalMinutes += amount;
+            }
+            if (found) break;
+        }
+
+        if (!found) return null;
+
+        // Normalizzazione tempi
+        totalHours += Math.floor(totalMinutes / 60);
+        totalMinutes %= 60;
+        totalDays += Math.floor(totalHours / 24);
+        totalHours %= 24;
+
+        if (totalDays >= 7) return totalDays + "d";
+        if (totalDays > 0) return totalDays + "d\n" + totalHours + "h";
+        if (totalHours > 0) return totalHours + "h\n" + totalMinutes + "m";
+        return totalMinutes + "m";
     }
 
     // 3. CALCOLO TEMPO DA TIMESTAMP (language-agnostic)
@@ -79,8 +109,9 @@
         const hours = Math.floor((totalSec % 86400) / 3600);
         const minutes = Math.floor((totalSec % 3600) / 60);
 
-        if (totalDays > 0) return totalDays + "d";
-        if (hours > 0) return hours + "h";
+        if (totalDays >= 7) return totalDays + "d";
+        if (totalDays > 0) return totalDays + "d\n" + hours + "h";
+        if (hours > 0) return hours + "h\n" + minutes + "m";
         return minutes + "m";
     }
 
